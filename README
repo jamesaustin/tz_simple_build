@@ -1,18 +1,46 @@
-Extra tools and code for Turbulenz.
+Simple build system for Turbulenz applications.
 
+Includes:
 
+SDK Version: 0.20.0
 
 build.py
-~~~~~~~~
+========
 
-(Must be run from within the Turbulenz SDK env)
+Make sure to enable the Turbulenz environment:
 
-Run from a game project root.  The tool will create a mapping table
-and build all assets contained in the 'assets' directory.  It will
+Win:
+    call C:\Turbulenz\SDK\0.20.0\env\Scripts\activate.bat
+
+Mac:
+    source ~/Turbulenz/SDK/0.20.0/env/bin/activate
+
+
+Run from a game project root. The tool will create a mapping table
+and build all assets contained in the 'assets' directory. It will
 also build the .html and JS code for each .js file in the 'templates'
-directoy (each .js file may optionally have an associated .html file).
+directory (each .js file may optionally have an associated .html file).
 
-The tool has no dependency checking.  It blindly builds everything it
-finds.
+The tool has no dependency checking. It will build or copy everything it
+finds into the mapping table.
 
-Use -h for help.
+Instructions:
+=============
+
+1) Copy the files into the root of your game project folder
+2) Start a terminal in the root of your directory
+3) Enable the Turbulenz environment (See above)
+4) Place any assets in a folder called "assets/"
+    e.g. assets/font/myfont.fnt, assets/textures/mytexture.png
+5) Run the command "python build.py"
+6) The command will convert any assets it recognises into a directory called 'staticmax'
+   with a mapping to those files in mapping_table.json
+   This output is recognised by the Turbulenz Services such as the Mapping Table API.
+7) The command will also build any templates located in the 'templates' folder.
+
+Try taking an existing project from the Turbulenz SDK, e.g. multiworm and try building it.
+
+For more info use 'python build.py -h' for help.
+    
+
+
