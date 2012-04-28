@@ -18,8 +18,8 @@ from genmapping import gen_mapping
 
 BUILDVERSION = '0.9.1'
 
-ENGINEVERSION = '0.19.0'
-SDKVERSION = '0.19.0'
+ENGINEVERSION = '0.20.0'
+SDKVERSION = '0.20.0'
 
 #User defined variables: Only set if different from default
 
@@ -76,9 +76,9 @@ def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
         return (env_name, None)
 
     if turbulenz_os == 'macosx' or turbulenz_os == 'linux64' or turbulenz_os == 'linux32':
-        tool = tool_name + '.py'
+        tool = tool_name
     elif turbulenz_os == 'win32':
-        tool = 'python -m ' + tool_name
+        tool = tool_name
     else:
         print "[Error] Platform not recognised. Cannot configure build."
         return (env_name, None)
@@ -289,6 +289,11 @@ def configure(env, options):
     if dae2json is None:
         raise Exception("can't find dae2json tool")
     print("dae2json: %s" % env['DAE2JSON'])
+    
+    (BMFONT2JSON, bmfont2json) = check_py_tool('BMFONT2JSON', 'bmfont2json', env, options)
+    if bmfont2json is None:
+        raise Exception("can't find bmfont2json tool")
+    print("bmfont2json: %s" % env['BMFONT2JSON'])
 
     for (env_name, req) in required.iteritems():
         if env_name == 'JS2TZJS':
@@ -761,6 +766,13 @@ def do_build(src, dest, env, options):
     elif ext == '.dae':
         try:
             exec_command("%s -i %s -o %s" % (env['DAE2JSON'], src, dest))
+        except CalledProcessError as e:
+            builderror = 1
+            print '[ERROR] Command failed: ' + str(e)
+            
+    elif ext == '.fnt':
+        try:
+            exec_command("%s -i %s -o %s" % (env['BMFONT2JSON'], src, dest))
         except CalledProcessError as e:
             builderror = 1
             print '[ERROR] Command failed: ' + str(e)
