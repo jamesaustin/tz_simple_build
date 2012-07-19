@@ -774,12 +774,12 @@ def do_build_code(filepath, env, options):
                 (appname, target) = os.path.splitext(filename)
                 if target == '.canvas':
 
-                    dependency_file = appname + '.deps.js'
+                    #dependency_file = appname + '.deps.js'
 
                     run_maketzjs(env, options,
                             input=(appname + '.js'),
                             mode='canvas',
-                            MF= dependency_file,
+                            #MF= dependency_file,
                             output=filepath,
                             templates=templates)
 
