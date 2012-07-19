@@ -363,46 +363,46 @@ def configure(env, options):
 
     for (env_name, req) in required.iteritems():
         if env_name == 'JS2TZJS':
-                (JS2TZJS, js2tzjs) = check_py_tool('JS2TZJS', 'js2tzjs', env, options)
-                if js2tzjs is None:
-                        if req:
-                                error("Couldn't find js2tzjs tool (required)")
-                                return False
-                        else:
-                                warning("Couldn't find js2tzjs tool (optional)")
+            (JS2TZJS, js2tzjs) = check_py_tool('JS2TZJS', 'js2tzjs', env, options)
+            if js2tzjs is None:
+                if req:
+                    error("Couldn't find js2tzjs tool (required)")
+                    return False
+                else:
+                    warning("Couldn't find js2tzjs tool (optional)")
         if env_name == 'HTML2TZHTML':
-                (HTML2TZHTML, html2tzhtml) = check_py_tool('HTML2TZHTML','html2tzhtml', env, options)
-                if html2tzhtml is None:
-                        if req:
-                                error("Couldn't find html2tzhtml tool (required)")
-                                return False
-                        else:
-                                warning("Couldn't find html2tzhtml tool (optional)")
+            (HTML2TZHTML, html2tzhtml) = check_py_tool('HTML2TZHTML','html2tzhtml', env, options)
+            if html2tzhtml is None:
+                if req:
+                    error("Couldn't find html2tzhtml tool (required)")
+                    return False
+                else:
+                    warning("Couldn't find html2tzhtml tool (optional)")
         if env_name == 'MAKETZJS':
-                (MAKETZJS, maketzjs) = check_py_tool('MAKETZJS', 'maketzjs', env, options, default_arg='--version')
-                if maketzjs is None:
-                        if req:
-                                error("Couldn't find maketzjs tool (required)")
-                                return False
-                        else:
-                                warning("Couldn't find maketzjs tool (optional)")
+            (MAKETZJS, maketzjs) = check_py_tool('MAKETZJS', 'maketzjs', env, options, default_arg='--version')
+            if maketzjs is None:
+                if req:
+                    error("Couldn't find maketzjs tool (required)")
+                    return False
+                else:
+                    warning("Couldn't find maketzjs tool (optional)")
         if env_name == 'MAKEHTML':
-                (MAKEHTML, makehtml) = check_py_tool('MAKEHTML', 'makehtml', env, options, default_arg='--version')
-                if makehtml is None:
-                        if req:
-                                error("Couldn't find makehtml tool (required)")
-                                return False
-                        else:
-                                warning("Couldn't find makehtml tool (optional)")
+            (MAKEHTML, makehtml) = check_py_tool('MAKEHTML', 'makehtml', env, options, default_arg='--version')
+            if makehtml is None:
+                if req:
+                    error("Couldn't find makehtml tool (required)")
+                    return False
+                else:
+                    warning("Couldn't find makehtml tool (optional)")
 
         if env_name == 'CGFX2JSON':
-                (CGFX2JSON, cgfx2json) = check_cgfx_tool(env, options)
-                if cgfx2json is None:
-                        if req:
-                                error("Couldn't find cgfx2json tool (required)")
-                                return False
-                        else:
-                                warning("Couldn't find cgfx2json tool (optional)")
+            (CGFX2JSON, cgfx2json) = check_cgfx_tool(env, options)
+            if cgfx2json is None:
+                if req:
+                    error("Couldn't find cgfx2json tool (required)")
+                    return False
+                else:
+                    warning("Couldn't find cgfx2json tool (optional)")
 
     env['APP_STATICMAX'] = os.path.join(app_root, 'staticmax')
     env['APP_TEMPLATES'] = os.path.join(app_root, 'templates')
@@ -427,10 +427,10 @@ def run_html_dev(task):
     tgt = task['outputs'][0]
     env = task['env']
     args = ['python', '-m', env['HTML2TZHTML'],
-            '-i', src,
-            '-o', tgt,
-            '-j', inc,
-            '-t', env['APP_TEMPLATES']]
+                      '-i', src,
+                      '-o', tgt,
+                      '-j', inc,
+                      '-t', env['APP_TEMPLATES']]
     return exec_command(args, verbose=task['options'].verbose, console=True)
 
 def run_html_rel(task):
@@ -439,43 +439,43 @@ def run_html_rel(task):
     env = task['env']
     tzjs = (os.path.splitext(src)[0] + '.tzjs')
     return exec_command(['python', '-m', env['HTML2TZHTML'],
-                               '-i', src,
-                               '-o', tgt,
-                               '-z', tzjs,
-                               '-t', env['APP_TEMPLATES']], verbose=task['options'].verbose, console=True)
+                                   '-i', src,
+                                   '-o', tgt,
+                                   '-z', tzjs,
+                                   '-t', env['APP_TEMPLATES']], verbose=task['options'].verbose, console=True)
 
 def run_makehtml(env, options, input=None, mode=None, output=None, templates=[], code=None, template=None):
     try:
-            makehtml = env['MAKEHTML']
+        makehtml = env['MAKEHTML']
     except KeyError as e:
-            error("Missing required env: %s " % str(e))
-            raise CalledProcessError(1, 'makehtml')
+        error("Missing required env: %s " % str(e))
+        raise CalledProcessError(1, 'makehtml')
 
     args = [makehtml]
     if mode is not None:
-            args.append('--mode')
-            args.append(mode)
+        args.append('--mode')
+        args.append(mode)
     if output is not None:
-            args.append('-o')
-            args.append(output)
+        args.append('-o')
+        args.append(output)
     for t in templates:
-            args.append('-t')
-            args.append(t)
+        args.append('-t')
+        args.append(t)
     if code is not None:
-            if mode is not None:
-                    if mode == 'plugin' or mode == 'canvas':
-                            args.append('--code')
-                            args.append(code)
-                    else:
-                            error("Code was specified, with an unexpected mode: %s" % mode)
-                            raise CalledProcessError(1, 'makehtml')
+        if mode is not None:
+            if mode == 'plugin' or mode == 'canvas':
+                args.append('--code')
+                args.append(code)
             else:
-                    error("Code was specified without a mode")
-                    raise CalledProcessError(1, 'makehtml')
+                error("Code was specified, with an unexpected mode: %s" % mode)
+                raise CalledProcessError(1, 'makehtml')
+        else:
+            error("Code was specified without a mode")
+            raise CalledProcessError(1, 'makehtml')
     if input is not None:
-            args.append(input)
+        args.append(input)
     if template is not None:
-            args.append(template)
+        args.append(template)
     return exec_command(args, verbose=options.verbose, console=True, shell=True)
 
 def run_maketzjs(env, options, input=None, mode=None, MF=None, output=None, templates=[]):
@@ -783,7 +783,8 @@ def do_build_code(filepath, env, options):
                             output=filepath,
                             templates=templates)
 
-                    google_compile(dependency_file, filename + ext)
+                    if options.closure:
+                        google_compile(dependency_file, filename + ext)
 
                 else:
                     if options.verbose:
@@ -1091,21 +1092,15 @@ def main():
 
     parser = OptionParser()
 
-    parser.add_option('--clean', action='store_true', \
-                        default=False, \
-                        help="Only builds")
-    parser.add_option('--clean-only', action='store_true', \
-                        default=False, \
-                        help="Only cleans")
-    parser.add_option('--code-only', action='store_true', default=False,
-                      help="Build only the game code")
-    parser.add_option('--template', dest='templateName',
-                      help="Specify the template to build")
-    parser.add_option('--find-non-ascii', action='store_true', default=False, help="Searches for non ascii characters in the scripts")
-    parser.add_option('--development', action='store_true', \
-                        help="Only builds the development build")
-    parser.add_option('--verbose', action='store_true', \
-                        help="Prints additional information about the build process")
+    parser.add_option('--clean', action='store_true', default=False, help="Only builds")
+    parser.add_option('--clean-only', action='store_true', default=False, help="Only cleans")
+    parser.add_option('--code-only', action='store_true', default=False, help="Build only the game code")
+    parser.add_option('--template', dest='templateName', help="Specify the template to build")
+    parser.add_option('--find-non-ascii', action='store_true', default=False,
+                      help="Searches for non ascii characters in the scripts")
+    parser.add_option('--development', action='store_true', help="Only builds the development build")
+    parser.add_option('--closure', action='store_true', default=False, help="Use Google Closure to post process")
+    parser.add_option('--verbose', action='store_true', help="Prints additional information about the build process")
     (options, args) = parser.parse_args()
 
     if options.verbose:
