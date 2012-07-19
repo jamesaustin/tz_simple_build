@@ -742,7 +742,7 @@ def do_build_code(filepath, env, options):
                             warning("Target not recognised: %s" % target)
             except CalledProcessError as e:
                 builderror = 1
-                print '[ERROR] Command failed: ' + str(e)
+                error('Command failed: ' + str(e))
 
     elif ext == '.tzjs':
         try:
@@ -766,7 +766,7 @@ def do_build_code(filepath, env, options):
                         warning("Target not recognised: %s" % target)
         except CalledProcessError as e:
             builderror = 1
-            print '[ERROR] Command failed: ' + str(e)
+            error('Command failed: ' + str(e))
 
     elif ext == '.js':
         try:
@@ -791,7 +791,7 @@ def do_build_code(filepath, env, options):
                         warning("Target not recognised: %s" % target)
         except CalledProcessError as e:
             builderror = 1
-            print '[ERROR] Command failed: ' + str(e)
+            error('Command failed: ' + str(e))
 
     elif ext == '.jsinc':
         try:
@@ -803,7 +803,7 @@ def do_build_code(filepath, env, options):
             })
         except CalledProcessError as e:
             builderror = 1
-            print '[ERROR] Command failed: ' + str(e)
+            error('Command failed: ' + str(e))
 
 
 def google_compile(dependency_file, output_file):
@@ -875,28 +875,28 @@ def do_build(src, dest, env, options):
             run_cgfx2json(env, options, input=src, output=dest)
         except CalledProcessError as e:
             builderror = 1
-            print '[ERROR] Command failed: ' + str(e)
+            error('Command failed: ' + str(e))
 
     elif ext == '.dae':
         try:
             exec_command("%s -i %s -o %s" % (env['DAE2JSON'], src, dest))
         except CalledProcessError as e:
             builderror = 1
-            print '[ERROR] Command failed: ' + str(e)
+            error('Command failed: ' + str(e))
 
     elif ext == '.fnt':
         try:
             exec_command("%s -i %s -o %s" % (env['BMFONT2JSON'], src, dest))
         except CalledProcessError as e:
             builderror = 1
-            print '[ERROR] Command failed: ' + str(e)
+            error('Command failed: ' + str(e))
 
     elif ext == '.schematic':
         try:
             exec_command("%s -i %s -o %s" % (env['MC2JSON'], src, dest))
         except CalledProcessError as e:
             builderror = 1
-            print '[ERROR] Command failed: ' + str(e)
+            error('Command failed: ' + str(e))
 
     else:
         copyfile(src, dest)
