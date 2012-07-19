@@ -20,8 +20,8 @@ from genmapping import gen_mapping
 
 BUILDVERSION = '0.9.1'
 
-ENGINEVERSION = '0.20.0'
-SDKVERSION = '0.20.1'
+ENGINEVERSION = '0.20.2'
+SDKVERSION = '0.20.2'
 
 #User defined variables: Only set if different from default
 
