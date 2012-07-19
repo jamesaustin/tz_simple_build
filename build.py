@@ -356,10 +356,10 @@ def configure(env, options):
         raise Exception("can't find bmfont2json tool")
     print "bmfont2json: %s" % env['BMFONT2JSON']
 
-    (MC2JSON, mc2json) = check_py_tool('MC2JSON', 'mc2json', env, options, default_arg='--version')
-    if mc2json is None:
-        raise Exception("can't find mc2json tool")
-    print "mc2json: %s" % env['MC2JSON']
+    #(MC2JSON, mc2json) = check_py_tool('MC2JSON', 'mc2json', env, options, default_arg='--version')
+    #if mc2json is None:
+    #    raise Exception("can't find mc2json tool")
+    #print "mc2json: %s" % env['MC2JSON']
 
     for (env_name, req) in required.iteritems():
         if env_name == 'JS2TZJS':
