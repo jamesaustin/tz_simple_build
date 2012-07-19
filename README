@@ -2,7 +2,7 @@ Simple build system for Turbulenz applications.
 
 Includes:
 
-SDK Version: 0.20.0
+SDK Version: 0.20.2
 
 build.py
 ========
@@ -10,10 +10,10 @@ build.py
 Make sure to enable the Turbulenz environment:
 
 Win:
-    call C:\Turbulenz\SDK\0.20.0\env\Scripts\activate.bat
+    call C:\Turbulenz\SDK\0.20.2\env\Scripts\activate.bat
 
 Mac:
-    source ~/Turbulenz/SDK/0.20.0/env/bin/activate
+    source ~/Turbulenz/SDK/0.20.2/env/bin/activate
 
 
 Run from a game project root. The tool will create a mapping table
@@ -41,6 +41,3 @@ Instructions:
 Try taking an existing project from the Turbulenz SDK, e.g. multiworm and try building it.
 
 For more info use 'python build.py -h' for help.
-    
-
-
