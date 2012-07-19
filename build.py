@@ -1,8 +1,11 @@
+#!/usr/bin/env python
 # Copyright (c) 2012 Turbulenz Limited
 
 import os
 import sys
 import glob
+
+from logging import info, warning, error, basicConfig as logging_config
 
 from platform import system, machine
 from subprocess import Popen, PIPE, STDOUT
@@ -13,20 +16,68 @@ import base64
 from shutil import copyfile, rmtree
 from optparse import OptionParser
 from distutils.version import StrictVersion
-
 from genmapping import gen_mapping
 
 BUILDVERSION = '0.9.1'
 
 ENGINEVERSION = '0.20.0'
-SDKVERSION = '0.20.0'
+SDKVERSION = '0.20.1'
 
 #User defined variables: Only set if different from default
 
-#USER_SDK_PATH = "C:\\Turbulenz\\SDK\\0.19.0"
+try:
+    USER_SDK_PATH = os.environ['TURBULENZ_SDK']
+except KeyError:
+    pass
 #USER_ENV_PATH = USER_SDK_PATH + "\env"
 USER_APP_JSLIB_PATH = os.path.join('scripts', 'turbulenz')
 
+# Clone of sh function from utils.turbulenz
+
+# pylint: disable=W0231
+class CalledProcessError(Exception):
+    def __init__(self, retcode, cmd, output=None):
+        self.retcode = retcode
+        self.cmd = cmd
+        self.output = output
+    def __str__(self):
+        return "Command '%s' returned non-zero exit status %d" % (self.cmd, self.retcode)
+# pylint: enable=W0231
+
+def exec_command(command, cwd=None, env=None, verbose=True, console=False,
+                 ignore=False, shell=True, wait=True):
+
+    if shell and isinstance(command, list):
+        command = ' '.join(command)
+    elif not shell and isinstance(command, basestring):
+        command = command.split()
+
+    if verbose:
+        print 'Executing: %s' % command
+
+    if wait:
+        if console:
+            process = Popen(command, stderr=STDOUT, cwd=cwd, shell=shell)
+        else:
+            process = Popen(command, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell)
+
+        output, _ = process.communicate()
+        output = str(output)
+        retcode = process.poll()
+        if retcode:
+            if ignore is False:
+                raise CalledProcessError(retcode, command, output=output)
+
+        if output is not None:
+            output = output.rstrip()
+
+        return output
+    else:
+        if system() == 'Windows':
+            detached_process = 0x00000008
+            Popen(command, creationflags=detached_process, cwd=cwd, shell=shell)
+        else:
+            Popen(command, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell)
 
 def removeDir(path, options):
     if os.path.isdir(path):
@@ -40,7 +91,7 @@ def check_path_py_tools(env, options):
         env_path = env['ENV_PATH']
         turbulenz_os = env['TURBULENZ_OS']
     except KeyError as e:
-        print "[Error] Missing required env: %s " % str(e)
+        error("Missing required env: %s " % str(e))
         return (env_name, None)
 
     if turbulenz_os == 'macox' or turbulenz_os == 'linux64' or turbulenz_os or 'linux32':
@@ -48,13 +99,13 @@ def check_path_py_tools(env, options):
     elif turbulenz_os == 'win32':
         path = os.path.join(env_path, 'Scripts')
     else:
-        print "[Error] Platform not recognised. Cannot configure build."
+        error("Platform not recognised. Cannot configure build.")
         return (env_name, None)
 
     if os.path.exists(path):
         env[env_name] = path
     else:
-        print "[Warning] Can't find optional %s path (Not set)" % (env_name)
+        warning("Can't find optional %s path (Not set)" % (env_name))
     return (env_name, path)
 
 
@@ -62,86 +113,93 @@ def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
                   default_arg=None):
 
     if env_name is None or env_name == '':
-        print "[Error] No env_name specified"
+        error("No env_name specified")
         return (None, None)
 
-    if options.verbose:
-        print "[Info] Checking: " + tool_name
+    info("Checking: " + tool_name)
     tool = None
 
-    try:
-        turbulenz_os = env['TURBULENZ_OS']
-    except KeyError as e:
-        print "[Error] Missing required env: %s " % str(e)
-        return (env_name, None)
+    def _default():
+        try:
+            turbulenz_os = env['TURBULENZ_OS']
+        except KeyError as e:
+            error("Missing required env: %s " % str(e))
+            return None
 
-    if turbulenz_os == 'macosx' or turbulenz_os == 'linux64' or turbulenz_os == 'linux32':
-        tool = tool_name
-    elif turbulenz_os == 'win32':
-        tool = tool_name
-    else:
-        print "[Error] Platform not recognised. Cannot configure build."
-        return (env_name, None)
+        if turbulenz_os == 'macosx' or turbulenz_os == 'linux64' or turbulenz_os == 'linux32':
+            tool = tool_name
+        elif turbulenz_os == 'win32':
+            tool = tool_name
+        else:
+            error("Platform not recognised. Cannot configure build.")
+            return None
 
-    print "turbulenz_os: %s" % turbulenz_os
-    print "TOOL: %s" % tool
+        print "turbulenz_os: %s" % turbulenz_os
+        print "TOOL: %s" % tool
+        return tool
 
-    # Check tool runs
-    if options.verbose:
-        print "[Info] Calling tool: " + tool
-    args = [tool]
-    if default_arg:
-        args.append(default_arg)
-    try:
-        result = exec_command(args,
-                              verbose=options.verbose,
-                              console=options.verbose)
-    except CalledProcessError:
-        print "[Warning] Failed to run tool as: "
-        print args
-        print "[Warning] You're environment may not be setup correctly"
-
+    def _pytools_root():
         # Attempt to use tools_root
-        if options.verbose:
-            print "[Info] Attempting to look in the python tools root"
+        info("Attempting to look in the python tools root")
+
         try:
             pytools_root = env['PYTOOLS_ROOT']
         except KeyError:
-            print "[Error] Missing required env: %s " % str(e)
-            return (env_name, None)
+            error("Missing required env: %s " % str(e))
+            return None
 
         tool = os.path.join(pytools_root, tool_name + '.py')
         if not os.path.exists(tool):
-            print "[Error] Tool doesn't exist: %s" % tool
-            if options.verbose:
-                print "[Info] Path: %s" % tool
+            error("Tool doesn't exist: %s" % tool)
+            info("Path: %s" % tool)
+
+        return tool
+
+    def _pytools_local():
+        tool = os.path.join('tools', tool_name)
+        if not os.path.exists(tool):
+            error("Tool doesn't exist: %s" % tool)
+            info("Path: %s" % tool)
+
+        return tool
+
+    for t in [_default, _pytools_root, _pytools_local]:
+        tool = t()
+        if not tool:
+            return (env_name, None)
+
+        # Check tool runs
+        info("Calling tool: " + tool)
         args = [tool]
         if default_arg:
             args.append(default_arg)
         try:
             result = exec_command(args, verbose=options.verbose, console=options.verbose)
         except CalledProcessError:
-            print "[Error] Failed to run tool as: "
+            warning("Failed to run tool as:")
             print args
-            print "[Error] Tool not found in standard locations"
-            return (env_name, None)
+            warning("You're environment may not be setup correctly")
+        else:
+            break
+    else:
+        error("Failed to find tool: %s" % tool_name)
+        return (env_name, None)
 
     # Tool runs, check version
     env[env_name] = tool
 
-    if options.verbose:
-        print "[Info] Checking version"
+    info("Checking version")
     # Check the version info matches
     if exp_version_str:
         args = [tool, '--version']
         try:
             result = exec_command(args, verbose=options.verbose, console=options.verbose)
             if result != exp_version_str:
-                print "[Error] Tool version returned: %s" % result
+                error("Tool version returned: %s" % result)
                 return False
 
         except CalledProcessError:
-            print "[Error] Tool failed to print version"
+            error("Tool failed to print version")
             return False
 
     return (env_name, tool)
@@ -154,19 +212,19 @@ def check_cgfx_tool(env, options):
         turbulenz_os =  env['TURBULENZ_OS']
         exe = env['EXE_EXT_OS']
     except KeyError as e:
-        print "[Error] Missing required env: %s " % str(e)
+        error("Missing required env: %s " % str(e))
         return (env_name, None)
 
     tool = os.path.join(tools_root, 'bin', turbulenz_os, 'cgfx2json') + exe
     if not os.path.exists(tool):
-        print "[Error] Can't find the cgfx2json tool: %s" % tool
+        error("Can't find the cgfx2json tool: %s" % tool)
         return (env_name, None)
 
     args = [tool]
     try:
         result = exec_command(args, verbose=options.verbose, console=options.verbose)
     except CalledProcessError:
-        print "[Error] Failed to run tool cgfx2json: "
+        error("Failed to run tool cgfx2json:")
         print args
         return (env_name, None)
     if options.verbose:
@@ -198,7 +256,7 @@ def configure(env, options):
         turbulenz_os = 'macosx'
 
     if turbulenz_os == '':
-        print "[Error] Build not supported on this platform"
+        error("Build not supported on this platform")
 
     env['TURBULENZ_OS'] = turbulenz_os
     env['EXE_EXT_OS'] = exe
@@ -210,7 +268,7 @@ def configure(env, options):
         env['ENGINE_VERSION_STR'] = ENGINEVERSION
         env['ENGINE_VERSION'] = engine_version
     except ValueError:
-        print "[Error]: Version of Engine not recognised: %s" % ENGINEVERSION
+        error("Version of Engine not recognised: %s" % ENGINEVERSION)
         return False
 
     try:
@@ -219,15 +277,15 @@ def configure(env, options):
         env['SDK_VERSION_STR'] = SDKVERSION
         env['SDK_VERSION'] = sdk_version
     except ValueError:
-        print "[Error]: Version of SDK not recognised: %s" % SDKVERSION
+        error("Version of SDK not recognised: %s" % SDKVERSION)
         return False
 
     if engine_version != sdk_version:
         if options.verbose:
-            print "[Warning]: Target engine and SDK version don't match. Engine: %s, SDK: %s" % (engine_version, sdk_version)
+            warning("Target engine and SDK version don't match. Engine: %s, SDK: %s" % (engine_version, sdk_version))
 
     if engine_version_minor != sdk_version_minor:
-        print "[Error]: Target engine and SDK minor versions are not compatible. Engine: %s, SDK: %s" % (engine_version_minor, sdk_version_minor)
+        error("Target engine and SDK minor versions are not compatible. Engine: %s, SDK: %s" % (engine_version_minor, sdk_version_minor))
         return False
 
     if 'USER_SDK_PATH' in globals():
@@ -238,12 +296,14 @@ def configure(env, options):
         elif turbulenz_os == 'macosx' or turbulenz_os == 'linux32' or turbulenz_os == 'linux64':
             sdk_root = os.path.expanduser(os.path.join('~/', 'Turbulenz', 'SDK', SDKVERSION))
         else:
-            print "[Error] Platform not recognised. Cannot configure build."
+            error("Platform not recognised. Cannot configure build.")
             return False
 
     if not os.path.exists(sdk_root):
         print "Can't find the SDK specified: %s" % sdk_root
-        print "If you are using a non-standard SDK path, set it in this file using USER_SDK_PATH"
+        print """If you are using a non-standard SDK path, either:
+  1. define the TURBULENZ_SDK environment variable, or
+  2. set it in this file using USER_SDK_PATH"""
         return False
 
     # Check expected env
@@ -255,7 +315,7 @@ def configure(env, options):
         env_path_expt = os.path.join(sdk_root, 'env')
 
     if env_path.lower() != env_path_expt.lower():
-        print "[Error] The environment you are running from is not the same as expected for the target SDK"
+        error("The environment you are running from is not the same as expected for the target SDK")
         print "Expected: %s, Actual: %s" % (env_path_expt, env_path)
         print "You may need to activate a different SDK environment."
         print "If you are using a different environment set it in this file using USER_ENV_PATH"
@@ -269,10 +329,11 @@ def configure(env, options):
 
     tools_root = os.path.join(sdk_root, 'tools')
     env['TOOLS_ROOT'] = tools_root
+    env['PYTOOLS_ROOT'] = os.path.join(app_root, 'tools')
 
     (_, pytools_root) = check_path_py_tools(env, options)
     if pytools_root is None:
-        print "[Warning] Path pytools_root has not been set (optional)"
+        warning("Path pytools_root has not been set (optional)")
 
     # Check for the existence of tools
     if sdk_version < StrictVersion('0.19.0'):
@@ -288,55 +349,60 @@ def configure(env, options):
     (DAE2JSON, dae2json) = check_py_tool('DAE2JSON', 'dae2json', env, options)
     if dae2json is None:
         raise Exception("can't find dae2json tool")
-    print("dae2json: %s" % env['DAE2JSON'])
-    
+    print "dae2json: %s" % env['DAE2JSON']
+
     (BMFONT2JSON, bmfont2json) = check_py_tool('BMFONT2JSON', 'bmfont2json', env, options)
     if bmfont2json is None:
         raise Exception("can't find bmfont2json tool")
-    print("bmfont2json: %s" % env['BMFONT2JSON'])
+    print "bmfont2json: %s" % env['BMFONT2JSON']
+
+    (MC2JSON, mc2json) = check_py_tool('MC2JSON', 'mc2json', env, options, default_arg='--version')
+    if mc2json is None:
+        raise Exception("can't find mc2json tool")
+    print "mc2json: %s" % env['MC2JSON']
 
     for (env_name, req) in required.iteritems():
         if env_name == 'JS2TZJS':
                 (JS2TZJS, js2tzjs) = check_py_tool('JS2TZJS', 'js2tzjs', env, options)
                 if js2tzjs is None:
                         if req:
-                                print "[Error] Couldn't find js2tzjs tool (required)"
+                                error("Couldn't find js2tzjs tool (required)")
                                 return False
                         else:
-                                print "[Warning] Couldn't find js2tzjs tool (optional)"
+                                warning("Couldn't find js2tzjs tool (optional)")
         if env_name == 'HTML2TZHTML':
                 (HTML2TZHTML, html2tzhtml) = check_py_tool('HTML2TZHTML','html2tzhtml', env, options)
                 if html2tzhtml is None:
                         if req:
-                                print "[Error] Couldn't find html2tzhtml tool (required)"
+                                error("Couldn't find html2tzhtml tool (required)")
                                 return False
                         else:
-                                print "[Warning] Couldn't find html2tzhtml tool (optional)"
+                                warning("Couldn't find html2tzhtml tool (optional)")
         if env_name == 'MAKETZJS':
                 (MAKETZJS, maketzjs) = check_py_tool('MAKETZJS', 'maketzjs', env, options, default_arg='--version')
                 if maketzjs is None:
                         if req:
-                                print "[Error] Couldn't find maketzjs tool (required)"
+                                error("Couldn't find maketzjs tool (required)")
                                 return False
                         else:
-                                print "[Warning] Couldn't find maketzjs tool (optional)"
+                                warning("Couldn't find maketzjs tool (optional)")
         if env_name == 'MAKEHTML':
                 (MAKEHTML, makehtml) = check_py_tool('MAKEHTML', 'makehtml', env, options, default_arg='--version')
                 if makehtml is None:
                         if req:
-                                print "[Error] Couldn't find makehtml tool (required)"
+                                error("Couldn't find makehtml tool (required)")
                                 return False
                         else:
-                                print "[Warning] Couldn't find makehtml tool (optional)"
+                                warning("Couldn't find makehtml tool (optional)")
 
         if env_name == 'CGFX2JSON':
                 (CGFX2JSON, cgfx2json) = check_cgfx_tool(env, options)
                 if cgfx2json is None:
                         if req:
-                                print "[Error] Couldn't find cgfx2json tool (required)"
+                                error("Couldn't find cgfx2json tool (required)")
                                 return False
                         else:
-                                print "[Warning] Couldn't find cgfx2json tool (optional)"
+                                warning("Couldn't find cgfx2json tool (optional)")
 
     env['APP_STATICMAX'] = os.path.join(app_root, 'staticmax')
     env['APP_TEMPLATES'] = os.path.join(app_root, 'templates')
@@ -354,55 +420,6 @@ def configure(env, options):
         env['APP_JSLIB'] = os.path.join(app_root)
 
     return True
-
-# pylint: disable=W0231
-class CalledProcessError(Exception):
-    def __init__(self, retcode, cmd, output=None):
-        self.retcode = retcode
-        self.cmd = cmd
-        self.output = output
-    def __str__(self):
-        return "Command '%s' returned non-zero exit status %d" % (self.cmd, self.retcode)
-# pylint: enable=W0231
-
-def exec_command(command, cwd=None, env=None, verbose=True, console=False,
-                 ignore=False, shell=True, wait=True):
-
-    if isinstance(command, list):
-        command_list = command
-        command_string = ' '.join(command)
-    else:
-        command_list = command.split()
-        command_string = command
-
-    print "exec_command: %s" % command_string
-
-    if verbose:
-        print('Executing: %s' % command_string)
-
-    if wait:
-        if console:
-            process = Popen(command_string, stderr=STDOUT, cwd=cwd, shell=shell)
-        else:
-            process = Popen(command_string, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell)
-
-        output, _ = process.communicate()
-        output = str(output)
-        retcode = process.poll()
-        if retcode:
-            if ignore is False:
-                raise CalledProcessError(retcode, command_list, output=output)
-
-        if output is not None:
-            output = output.rstrip()
-
-        return output
-    else:
-        if system() == 'Windows':
-            detached_process = 0x00000008
-            Popen(command_list, creationflags=detached_process, cwd=cwd, shell=shell)
-        else:
-            Popen(command_list, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell)
 
 def run_html_dev(task):
     src = task['inputs'][0]
@@ -428,61 +445,65 @@ def run_html_rel(task):
                                '-t', env['APP_TEMPLATES']], verbose=task['options'].verbose, console=True)
 
 def run_makehtml(env, options, input=None, mode=None, output=None, templates=[], code=None, template=None):
-        try:
-                makehtml = env['MAKEHTML']
-        except KeyError as e:
-                print "[Error] Missing required env: %s " % str(e)
-                raise CalledProcessError(1, 'makehtml')
+    try:
+            makehtml = env['MAKEHTML']
+    except KeyError as e:
+            error("Missing required env: %s " % str(e))
+            raise CalledProcessError(1, 'makehtml')
 
-        args = [makehtml]
-        if mode is not None:
-                args.append('--mode')
-                args.append(mode)
-        if output is not None:
-                args.append('-o')
-                args.append(output)
-        for t in templates:
-                args.append('-t')
-                args.append(t)
-        if code is not None:
-                if mode is not None:
-                        if mode == 'plugin' or mode == 'canvas':
-                                args.append('--code')
-                                args.append(code)
-                        else:
-                                print "[Error] Code was specified, with an unexpected mode: %s" % mode
-                                raise CalledProcessError(1, 'makehtml')
-                else:
-                        print "[Error] Code was specified without a mode"
-                        raise CalledProcessError(1, 'makehtml')
-        if input is not None:
-                args.append(input)
-        if template is not None:
-                args.append(template)
-        return exec_command(args, verbose=options.verbose, console=True, shell=True)
+    args = [makehtml]
+    if mode is not None:
+            args.append('--mode')
+            args.append(mode)
+    if output is not None:
+            args.append('-o')
+            args.append(output)
+    for t in templates:
+            args.append('-t')
+            args.append(t)
+    if code is not None:
+            if mode is not None:
+                    if mode == 'plugin' or mode == 'canvas':
+                            args.append('--code')
+                            args.append(code)
+                    else:
+                            error("Code was specified, with an unexpected mode: %s" % mode)
+                            raise CalledProcessError(1, 'makehtml')
+            else:
+                    error("Code was specified without a mode")
+                    raise CalledProcessError(1, 'makehtml')
+    if input is not None:
+            args.append(input)
+    if template is not None:
+            args.append(template)
+    return exec_command(args, verbose=options.verbose, console=True, shell=True)
 
-def run_maketzjs(env, options, input=None, mode=None, output=None, templates=[]):
-        try:
-                maketzjs = env['MAKETZJS']
-        except KeyError as e:
-                print "[Error] Missing required env: %s " % str(e)
-                raise CalledProcessError(1, 'maketzjs')
+def run_maketzjs(env, options, input=None, mode=None, MF=None, output=None, templates=[]):
+    try:
+            maketzjs = env['MAKETZJS']
+    except KeyError as e:
+            error("Missing required env: %s " % str(e))
+            raise CalledProcessError(1, 'maketzjs')
 
-        #TODO: version check
-        args = [maketzjs]
-        if mode is not None:
-                args.append('--mode')
-                args.append(mode)
-        if output is not None:
-                args.append('-o')
-                args.append(output)
-        for t in templates:
-                args.append('-t')
-                args.append(t)
-        if input is not None:
-                args.append(input)
+    #TODO: version check
+    args = [maketzjs]
+    if mode is not None:
+            args.append('--mode')
+            args.append(mode)
+    if MF is not None:
+            args.append('-M')
+            args.append('--MF')
+            args.append(MF)
+    if output is not None:
+            args.append('-o')
+            args.append(output)
+    for t in templates:
+            args.append('-t')
+            args.append(t)
+    if input is not None:
+            args.append(input)
 
-        return exec_command(args, verbose=options.verbose, console=True)
+    return exec_command(args, verbose=options.verbose, console=True)
 
 def run_js2tzjs(task):
     src = task['inputs'][0]
@@ -514,21 +535,21 @@ def run_js2tzjs_jsinc(task):
     return exec_command(args, verbose=task['options'].verbose, console=True)
 
 def run_cgfx2json(env, options, input=None, output=None):
-        try:
-                cgfx2json = env['CGFX2JSON']
-        except KeyError as e:
-                print "[Error] Missing required env: %s " % str(e)
-                raise CalledProcessError(1, 'cgfx2json')
+    try:
+            cgfx2json = env['CGFX2JSON']
+    except KeyError as e:
+            error("Missing required env: %s " % str(e))
+            raise CalledProcessError(1, 'cgfx2json')
 
-        #TODO: version check
-        args = [cgfx2json]
-        if input is not None:
-                args.append('-i')
-                args.append(input)
-        if output is not None:
-                args.append('-o')
-                args.append(output)
-        return exec_command(args, verbose=options.verbose, console=True)
+    #TODO: version check
+    args = [cgfx2json]
+    if input is not None:
+            args.append('-i')
+            args.append(input)
+    if output is not None:
+            args.append('-o')
+            args.append(output)
+    return exec_command(args, verbose=options.verbose, console=True)
 
 def clean(env, options):
 
@@ -583,38 +604,54 @@ def do_build_code(filepath, env, options):
     if ext == '.html':
         (appname, buildtype) = os.path.splitext(filename)
 
-        html_templates = [ t + "/" + appname + ".html" for t in templates ]
-        html_templates = [ os.path.split(t)[1] \
-                               for t in html_templates if os.path.exists(t) ]
-        # print "HTML templates: %s" % html_templates
-        # print "buildtype: %s" % buildtype
-
         if buildtype is not None:
             try:
                 (appname, target) = os.path.splitext(appname)
+
+                html_templates = [ t + "/" + appname + ".html" for t in templates ]
+                html_templates = [ os.path.split(t)[1] \
+                                       for t in html_templates if os.path.exists(t) ]
+                # print "HTML templates: %s" % html_templates
+                # print "buildtype: %s" % buildtype
+
                 if buildtype == '.development':
                     if options.verbose:
-                        print "[Warning] 'development' should now be 'debug' and has not been built. Change the name of the destination file"
+                        warning("'development' should now be 'debug' and has not been built. Change the name of the destination file")
                 else:
                     if target == '.canvas':
                         if buildtype == '.debug':
-                                run_makehtml(env, options,
-                                        input=(appname + '.js'),
-                                        mode='canvas-debug',
-                                        output=filepath,
-                                        templates=templates,
-                                        template=" ".join(html_templates))
+
+                            print ""
+                            print "----------------------------------------------------------"
+                            print "                   CANVAS DEBUG"
+                            print "----------------------------------------------------------"
+                            print ""
+
+                            run_makehtml(env, options,
+                                    input=(appname + '.js'),
+                                    mode='canvas-debug',
+                                    output=filepath,
+                                    templates=templates,
+                                    template=" ".join(html_templates))
+
                         elif buildtype == '.release':
-                                run_makehtml(env, options,
-                                        input=(appname + '.js'),
-                                        mode='canvas',
-                                        output=filepath,
-                                        templates=templates,
-                                        code=(appname + target + '.js'),
-                                        template=" ".join(html_templates))
+
+                            print ""
+                            print "----------------------------------------------------------"
+                            print "                   CANVAS RELEASE"
+                            print "----------------------------------------------------------"
+                            print ""
+
+                            run_makehtml(env, options,
+                                    input=(appname + '.js'),
+                                    mode='canvas',
+                                    output=filepath,
+                                    templates=templates,
+                                    code=(appname + target + '.js'),
+                                    template=" ".join(html_templates))
                         else:
                             if options.verbose:
-                                print "[Warning] Build type not recognised: %s" % buildtype
+                                warning("Build type not recognised: %s" % buildtype)
                     if target == '.default':
                         (appname, defaultTarget) = os.path.splitext(appname)
                         if defaultTarget == '.canvas':
@@ -633,7 +670,7 @@ def do_build_code(filepath, env, options):
                                         templates=templates)
                             else:
                                 if options.verbose:
-                                    print "[Warning] Build type not recognised: %s" % buildtype
+                                    warning("Build type not recognised: %s" % buildtype)
                         if defaultTarget == '':
                             if buildtype == '.debug':
                                 run_makehtml(env, options,
@@ -650,7 +687,7 @@ def do_build_code(filepath, env, options):
                                         templates=" ".join(html_templates))
                             else:
                                 if options.verbose:
-                                    print "[Warning] Build type not recognised: %s" % buildtype
+                                    warning("Build type not recognised: %s" % buildtype)
                         if buildtype == '.debug':
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
@@ -665,10 +702,17 @@ def do_build_code(filepath, env, options):
                                     templates=" ".join(html_templates))
                         else:
                             if options.verbose:
-                                print "[Warning] Build type not recognised: %s" % buildtype
+                                warning("Build type not recognised: %s" % buildtype)
                     elif target == '':
                         # Blank target is plugin
                         if buildtype == '.debug':
+
+                            print ""
+                            print "----------------------------------------------------------"
+                            print "                   PLUGIN DEBUG"
+                            print "----------------------------------------------------------"
+                            print ""
+
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='plugin-debug',
@@ -676,6 +720,13 @@ def do_build_code(filepath, env, options):
                                     templates=templates,
                                     template=" ".join(html_templates))
                         elif buildtype == '.release':
+
+                            print ""
+                            print "----------------------------------------------------------"
+                            print "                   PLUGIN RELEASE"
+                            print "----------------------------------------------------------"
+                            print ""
+
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='plugin',
@@ -685,10 +736,10 @@ def do_build_code(filepath, env, options):
                                     template=" ".join(html_templates))
                         else:
                             if options.verbose:
-                                print "[Warning] Build type not recognised: %s" % buildtype
+                                warning("Build type not recognised: %s" % buildtype)
                     else:
                         if options.verbose:
-                            print "[Warning] Target not recognised: %s" % target
+                            warning("Target not recognised: %s" % target)
             except CalledProcessError as e:
                 builderror = 1
                 print '[ERROR] Command failed: ' + str(e)
@@ -712,7 +763,7 @@ def do_build_code(filepath, env, options):
                             templates=templates)
                 else:
                     if options.verbose:
-                        print "[Warning] Target not recognised: %s" % target
+                        warning("Target not recognised: %s" % target)
         except CalledProcessError as e:
             builderror = 1
             print '[ERROR] Command failed: ' + str(e)
@@ -722,14 +773,21 @@ def do_build_code(filepath, env, options):
             if env['SDK_VERSION'] >= StrictVersion('0.19.0'):
                 (appname, target) = os.path.splitext(filename)
                 if target == '.canvas':
+
+                    dependency_file = appname + '.deps.js'
+
                     run_maketzjs(env, options,
-                            mode='canvas',
                             input=(appname + '.js'),
+                            mode='canvas',
+                            MF= dependency_file,
                             output=filepath,
                             templates=templates)
+
+                    google_compile(dependency_file, filename + ext)
+
                 else:
                     if options.verbose:
-                        print "[Warning] Target not recognised: %s" % target
+                        warning("Target not recognised: %s" % target)
         except CalledProcessError as e:
             builderror = 1
             print '[ERROR] Command failed: ' + str(e)
@@ -747,7 +805,62 @@ def do_build_code(filepath, env, options):
             print '[ERROR] Command failed: ' + str(e)
 
 
+def google_compile(dependency_file, output_file):
 
+    f = open(dependency_file, 'r')
+
+    file_contents = f.read()
+    dependency_sets = file_contents.split('\n\n')
+
+    dependencies = ''
+
+    for dependency_set in dependency_sets:
+        dep_set_split = dependency_set.split(' :')
+
+        if (len(dep_set_split) > 1):
+            deps = dep_set_split[1]
+
+            file_list = deps.split()
+
+            for file in file_list:
+                file.strip()
+
+                if (file != ':' and file != '\\'):
+                    print file
+                    dependencies += ' --js ' + file
+
+    # Create flag file
+    flag_file_path = 'flagfile.txt'
+    flag_file = open(flag_file_path, 'w')
+
+    flag_file.write(dependencies)
+    flag_file.close()
+
+    optimization_level = 'SIMPLE_OPTIMIZATIONS'
+    #optimization_level = 'ADVANCED_OPTIMIZATIONS'
+
+    args = [
+            'java',
+            '-jar',
+            'build/compiler.jar',
+            '--version',
+            '--compilation_level',
+            optimization_level,
+            '--flagfile',
+            flag_file_path,
+            '--js_output_file',
+            output_file,
+            '--warning_level',
+            'DEFAULT'
+        ]
+
+    print ""
+    print "----------------------------------------------------------"
+    print "                   RUNNING CLOSURE COMPILER"
+    print "----------------------------------------------------------"
+    print ""
+
+    exec_command(args, console=True, verbose=True, shell=True)
 
 def do_build(src, dest, env, options):
 
@@ -769,10 +882,17 @@ def do_build(src, dest, env, options):
         except CalledProcessError as e:
             builderror = 1
             print '[ERROR] Command failed: ' + str(e)
-            
+
     elif ext == '.fnt':
         try:
             exec_command("%s -i %s -o %s" % (env['BMFONT2JSON'], src, dest))
+        except CalledProcessError as e:
+            builderror = 1
+            print '[ERROR] Command failed: ' + str(e)
+
+    elif ext == '.schematic':
+        try:
+            exec_command("%s -i %s -o %s" % (env['MC2JSON'], src, dest))
         except CalledProcessError as e:
             builderror = 1
             print '[ERROR] Command failed: ' + str(e)
@@ -979,12 +1099,19 @@ def main():
                         help="Only cleans")
     parser.add_option('--code-only', action='store_true', default=False,
                       help="Build only the game code")
+    parser.add_option('--template', dest='templateName',
+                      help="Specify the template to build")
     parser.add_option('--find-non-ascii', action='store_true', default=False, help="Searches for non ascii characters in the scripts")
     parser.add_option('--development', action='store_true', \
                         help="Only builds the development build")
     parser.add_option('--verbose', action='store_true', \
                         help="Prints additional information about the build process")
     (options, args) = parser.parse_args()
+
+    if options.verbose:
+        logging_config(level='INFO', format='[%(levelname)s @%(lineno)d] %(message)s')
+    else:
+        logging_config(format='[%(levelname)s] %(message)s')
 
     if not configure(env, options):
         result = 1
@@ -1062,7 +1189,11 @@ def main():
         print "----------------------------------------------------------"
         print ""
 
-        code_files = glob.glob('templates/*.js')
+        if options.templateName:
+            code_files = [os.path.join('templates/', options.templateName) + '.js']
+        else:
+            code_files = glob.glob('templates/*.js')
+
         # print "CODE FILES: %s" % code_files
 
         for f in code_files:
