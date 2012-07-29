@@ -73,7 +73,7 @@ def gen_mapping(asset_dir, staticmax_root, ignore_exts = []):
     build_deps = {}
 
     for root, dirs, files in os.walk(asset_dir):
-        LOG.info("root: %s, dirs: %s, files: %s" % (root, dirs, files))
+        LOG.info("PATH: %s, dirs: %s, files: %s" % (root, dirs, files))
 
         root_rel = os.path.relpath(root, asset_dir)
         for f in files:
