@@ -82,9 +82,24 @@ def exec_command(command, cwd=None, env=None, verbose=True, console=False,
         else:
             Popen(command, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell)
 
-def removeDir(path):
+############################################################
+
+def rm(path):
+    if path_exists(path):
+        debug('rm: %s' % path)
+        os.remove(path)
+
+def rmdir(path):
     if path_isdir(path):
+        debug('rmdir: %s' % path)
         rmtree(path)
+
+def mkdir(path):
+    if not path_isdir(path):
+        debug('mkdir: %s' % path)
+        os.makedirs(path)
+
+############################################################
 
 def check_path_py_tools(env, options):
 
@@ -554,12 +569,10 @@ def clean(env):
 
     try:
         # Clean staticmax
-        removeDir(env['APP_STATICMAX'])
+        rmdir(env['APP_STATICMAX'])
 
         # Clean mapping_table
-        mapping_path = path_join(env['APP_ROOT'], 'mapping_table.json')
-        if path_exists(mapping_path):
-                os.remove(mapping_path)
+        rm(path_join(env['APP_ROOT'], 'mapping_table.json'))
 
         # Aggressive root level cleaning
         for f in os.listdir(env['APP_ROOT']):
@@ -567,12 +580,12 @@ def clean(env):
 
             # Also cleans previous SDK content e.g. .jsinc
             if ext in ['.jsinc', '.tzjs', '.html']:
-                os.remove(f)
+                rm(f)
             if ext == '.js':
                 #Only remove canvas js files, might have js in root folder
                 (appname, target) = path_splitext(filename)
                 if target == '.canvas':
-                    os.remove(f)
+                    rm(f)
                 else:
                     warning('[Warning] target %s unknown, ignoring. Not cleaned: %s' % (target, f))
     except OSError as e:
@@ -937,8 +950,7 @@ def yaml2json(source_filename, dest_filename, is_mapping_table, env, options, in
                 yaml_dict = { 'version': 1.0 }
 
                 staticmax_path = env['APP_STATICMAX']
-                if not path_isdir(staticmax_path):
-                    os.makedirs(staticmax_path)
+                mkdir(staticmax_path)
 
                 # Process assets
                 for entry in yaml_data:
@@ -1089,13 +1101,11 @@ def main():
         _log_stage("ASSET BUILD (may be slow - disable with --code-only)")
 
         # Mapping table
-
-        if not path_exists('staticmax'):
-           os.makedirs('staticmax')
+        mkdir('staticmax')
         (mapping_table_obj, build_deps) = gen_mapping('assets', 'staticmax')
 
         # Write mapping table
-
+        print 'mapping_table.json'
         with open('mapping_table.json', 'wb') as f:
             json_dump(mapping_table_obj, f, separators=(',', ':'))
 
