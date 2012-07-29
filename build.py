@@ -82,7 +82,7 @@ def exec_command(command, cwd=None, env=None, verbose=True, console=False,
         else:
             Popen(command, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell)
 
-def removeDir(path, options):
+def removeDir(path):
     if path_isdir(path):
         rmtree(path)
 
@@ -136,8 +136,8 @@ def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
             error("Platform not recognised. Cannot configure build.")
             return None
 
-        print "turbulenz_os: %s" % turbulenz_os
-        print "TOOL: %s" % tool
+        debug("turbulenz_os: %s" % turbulenz_os)
+        info("TOOL: %s" % tool)
         return tool
 
     def _pytools_root():
@@ -336,29 +336,29 @@ def configure(env, options):
 
     # Check for the existence of tools
     if sdk_version < StrictVersion('0.19.0'):
-        required = dict(JS2TZJS=True, \
-                        HTML2TZHTML=True, \
+        required = dict(JS2TZJS=True,
+                        HTML2TZHTML=True,
                         CGFX2JSON=False)
     else:
-        required = dict(MAKETZJS=True,   \
-                        MAKEHTML=True,   \
-                        CGFX2JSON=False \
-                        )
+        required = dict(MAKETZJS=True,
+                        MAKEHTML=True,
+                        CGFX2JSON=False)
 
     (DAE2JSON, dae2json) = check_py_tool('DAE2JSON', 'dae2json', env, options)
     if dae2json is None:
         raise Exception("can't find dae2json tool")
-    print "dae2json: %s" % env['DAE2JSON']
+    info("dae2json: %s" % env['DAE2JSON'])
 
     (BMFONT2JSON, bmfont2json) = check_py_tool('BMFONT2JSON', 'bmfont2json', env, options)
     if bmfont2json is None:
         raise Exception("can't find bmfont2json tool")
-    print "bmfont2json: %s" % env['BMFONT2JSON']
+    info("bmfont2json: %s" % env['BMFONT2JSON'])
 
-    #(MC2JSON, mc2json) = check_py_tool('MC2JSON', 'mc2json', env, options, default_arg='--version')
-    #if mc2json is None:
-    #    raise Exception("can't find mc2json tool")
-    #print "mc2json: %s" % env['MC2JSON']
+    (MC2JSON, mc2json) = check_py_tool('MC2JSON', 'mc2json', env, options, default_arg='--version')
+    if mc2json is None:
+        warning("Couldn't find mc2json tool (optional)")
+    else:
+        info("mc2json: %s" % env['MC2JSON'])
 
     for (env_name, req) in required.iteritems():
         if env_name == 'JS2TZJS':
@@ -550,13 +550,11 @@ def run_cgfx2json(env, options, input=None, output=None):
         args.append(output)
     return exec_command(args, verbose=options.verbose, console=True)
 
-def clean(env, options):
-
-    result = 0
+def clean(env):
 
     try:
         # Clean staticmax
-        removeDir(env['APP_STATICMAX'], options)
+        removeDir(env['APP_STATICMAX'])
 
         # Clean mapping_table
         mapping_path = path_join(env['APP_ROOT'], 'mapping_table.json')
@@ -568,15 +566,7 @@ def clean(env, options):
             (filename, ext) = path_splitext(f)
 
             # Also cleans previous SDK content e.g. .jsinc
-
-            # Clean .jsinc
-            if ext == '.jsinc':
-                os.remove(f)
-            # Clean .tzjs
-            if ext == '.tzjs':
-                os.remove(f)
-            # Clean .html
-            if ext == '.html':
+            if ext in ['.jsinc', '.tzjs', '.html']:
                 os.remove(f)
             if ext == '.js':
                 #Only remove canvas js files, might have js in root folder
@@ -584,16 +574,16 @@ def clean(env, options):
                 if target == '.canvas':
                     os.remove(f)
                 else:
-                    if options.verbose:
-                        print '[Warning] target %s unknown, ignoring. Not cleaned: %s' % (target, f)
+                    warning('[Warning] target %s unknown, ignoring. Not cleaned: %s' % (target, f))
     except OSError as e:
-        print 'Failed to remove: %s' % str(e)
-        result = 1
-    return result
+        error('Failed to remove: %s' % str(e))
+        return False
+
+    return True
 
 ############################################################
 
-def _print_stage(stage):
+def _log_stage(stage):
     print '\n{0}\n{1: ^58}\n{0}\n'.format('-' * 58, stage)
 
 def do_build_code(filepath, env, options):
@@ -622,7 +612,7 @@ def do_build_code(filepath, env, options):
                 else:
                     if target == '.canvas':
                         if buildtype == '.debug':
-                            _print_stage('CANVAS DEBUG')
+                            _log_stage('CANVAS DEBUG')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='canvas-debug',
@@ -631,7 +621,7 @@ def do_build_code(filepath, env, options):
                                     template=" ".join(html_templates))
 
                         elif buildtype == '.release':
-                            _print_stage('CANVAS RELEASE')
+                            _log_stage('CANVAS RELEASE')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='canvas',
@@ -696,7 +686,7 @@ def do_build_code(filepath, env, options):
                     elif target == '':
                         # Blank target is plugin
                         if buildtype == '.debug':
-                            _print_stage('PLUGIN DEBUG')
+                            _log_stage('PLUGIN DEBUG')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='plugin-debug',
@@ -704,7 +694,7 @@ def do_build_code(filepath, env, options):
                                     templates=templates,
                                     template=" ".join(html_templates))
                         elif buildtype == '.release':
-                            _print_stage('PLUGIN RELEASE')
+                            _log_stage('PLUGIN RELEASE')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='plugin',
@@ -832,7 +822,7 @@ def google_compile(dependency_file, output_file):
             'DEFAULT'
         ]
 
-    _print_stage('RUNNING CLOSURE COMPILER')
+    _log_stage('RUNNING CLOSURE COMPILER')
     exec_command(args, console=True, verbose=True, shell=True)
 
 def do_build(src, dest, env, options):
@@ -1080,11 +1070,10 @@ def main():
     else:
         logging_config(format='[%(levelname)s] %(message)s')
 
-    _print_stage('CONFIGURING')
+    _log_stage('CONFIGURING')
     if not configure(env, options):
-        result = 1
-        print 'Failed to configure build'
-        return result
+        error('Failed to configure build')
+        return 1
 
     if options.find_non_ascii:
         result = find_non_ascii(env['APP_SCRIPTS'], env, options)
@@ -1094,25 +1083,17 @@ def main():
             print "Only ASCII found!"
         return result
 
-    # Clean only
-    if options.clean_only:
-        _print_stage('CLEANING')
-        result = clean(env, options)
-        if result != 0:
-            print 'Failed to clean build'
-        else:
-            print 'Cleaned'
-        return result
+    # Clean only or Clean build first
+    if options.clean_only or options.clean:
+        _log_stage('CLEANING')
+        success = clean(env)
+        if not success:
+            error('Failed to clean build')
+            return 1
 
-    # Clean build first
-    if options.clean:
-        _print_stage('CLEANING')
-        result = clean(env, options)
-        if result != 0:
-            print 'Failed to clean build'
-            return result
-
-        print 'Cleaned'
+        info('Cleaned')
+        if options.clean_only:
+            return 0
 
     # Asset build
     if len(args) > 0:
@@ -1120,7 +1101,7 @@ def main():
     else:
 
         if not options.code_only:
-            _print_stage("ASSET BUILD (may be slow - disable with --code-only)")
+            _log_stage("ASSET BUILD (may be slow - disable with --code-only)")
 
             # Mapping table
 
@@ -1148,7 +1129,7 @@ def main():
 
         # Code
 
-        _print_stage('CODE BUILD')
+        _log_stage('CODE BUILD')
 
         if options.templateName:
             code_files = [path_join('templates/', options.templateName) + '.js']
@@ -1157,7 +1138,7 @@ def main():
         debug("code:src:%s" % code_files)
 
         for f in code_files:
-            print " APP: %s" % f
+            print "APP: %s" % f
             (code_base, code_ext) = path_splitext(path_split(f)[1])
 
             code_dests = [ code_base + ".canvas.debug.html",
