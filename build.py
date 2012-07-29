@@ -418,6 +418,8 @@ def configure(env, options):
                 else:
                     warning("Couldn't find cgfx2json tool (optional)")
 
+    env['MAPPING_TABLE'] = 'mapping_table.json'
+    env['APP_MAPPING_TABLE'] = path_join(app_root, env['MAPPING_TABLE'])
     env['APP_STATICMAX'] = path_join(app_root, 'staticmax')
     env['APP_TEMPLATES'] = path_join(app_root, 'templates')
     env['APP_SHADERS'] = path_join(app_root, 'assets', 'shaders')
@@ -566,13 +568,9 @@ def run_cgfx2json(env, options, input=None, output=None):
     return exec_command(args, verbose=options.verbose, console=True)
 
 def clean(env):
-
     try:
-        # Clean staticmax
         rmdir(env['APP_STATICMAX'])
-
-        # Clean mapping_table
-        rm(path_join(env['APP_ROOT'], 'mapping_table.json'))
+        rm(env['APP_MAPPING_TABLE'])
 
         # Aggressive root level cleaning
         for f in os.listdir(env['APP_ROOT']):
@@ -1053,12 +1051,14 @@ def find_non_ascii(path, env):
 
 def main():
     parser = OptionParser()
-    parser.add_option('--clean', action='store_true', default=False, help="Only builds")
-    parser.add_option('--clean-only', action='store_true', default=False, help="Only cleans")
-    parser.add_option('--code-only', action='store_true', default=False, help="Build only the game code")
-    parser.add_option('--template', dest='templateName', help="Specify the template to build")
+    parser.add_option('--clean', action='store_true', default=False, help="Clean build output")
+    parser.add_option('--assets', action='store_true', default=False, help="Build assets")
+    parser.add_option('--code', action='store_true', default=False, help="Build code")
+    parser.add_option('--all', action='store_true', default=False, help="Build everything")
+
     parser.add_option('--find-non-ascii', action='store_true', default=False,
                       help="Searches for non ascii characters in the scripts")
+    parser.add_option('--template', dest='templateName', help="Specify the template to build")
     parser.add_option('--closure', action='store_true', default=False, help="Use Google Closure to post process")
     parser.add_option('--verbose', action='store_true', help="Prints additional information about the build process")
     (options, args) = parser.parse_args()
@@ -1084,67 +1084,63 @@ def main():
             info("Only ASCII found!")
         return count
 
-    # Clean only or Clean build first
-    if options.clean_only or options.clean:
+    if options.clean:
         _log_stage('CLEANING')
         success = clean(env)
         if not success:
             error('Failed to clean build')
             return 1
+        else:
+            info('Cleaned')
 
-        info('Cleaned')
-        if options.clean_only:
-            return 0
-
-    # Asset build
-    if not options.code_only:
-        _log_stage("ASSET BUILD (may be slow - disable with --code-only)")
+    if options.assets or options.all:
+        _log_stage("ASSET BUILD (may be slow - only build code with --code)")
 
         # Mapping table
         mkdir('staticmax')
         (mapping_table_obj, build_deps) = gen_mapping('assets', 'staticmax')
+        debug('assets:src:%s' % build_deps)
 
         # Write mapping table
-        print 'mapping_table.json'
-        with open('mapping_table.json', 'wb') as f:
+        print env['MAPPING_TABLE']
+        with open(env['APP_MAPPING_TABLE'], 'w') as f:
             json_dump(mapping_table_obj, f, separators=(',', ':'))
 
+        longest = len(max(build_deps, key=len)) + 2
+        def _log(src, dst):
+            print '{0:-<{longest}}> {1}'.format(src + ' ', dest, longest=longest)
+
         # Build all asset files
-
-        # print "Deps: %s" % build_deps
-
-        for src in build_deps:
-            dest = build_deps[src]
-            print "Building %s -> %s" % (src, dest)
-
+        for src, dest in build_deps.iteritems():
+            _log(src, dest)
             result = do_build(src, dest, env, options)
             if result:
                 error('Build failed')
                 return 1
 
-    # Code
-    _log_stage('CODE BUILD')
-    if options.templateName:
-        code_files = ['%s.js' % path_join('templates', options.templateName)]
-    else:
-        code_files = glob('templates/*.js')
-    debug("code:src:%s" % code_files)
+    if options.code or options.all:
+        _log_stage('CODE BUILD')
+        if options.templateName:
+            code_files = ['%s.js' % path_join('templates', options.templateName)]
+        else:
+            code_files = glob('templates/*.js')
+        debug("code:src:%s" % code_files)
 
-    for f in code_files:
-        (code_base, code_ext) = path_splitext(path_split(f)[1])
-        code_dests = [ code_base + ".canvas.debug.html",
-                       code_base + ".canvas.release.html",
-                       code_base + ".canvas.js",
-                       code_base + ".debug.html",
-                       code_base + ".release.html",
-                       code_base + ".tzjs" ]
-        debug("code:dest:%s" % code_dests)
+        for src in code_files:
+            (code_base, code_ext) = path_splitext(path_split(src)[1])
+            code_dests = [ code_base + ".canvas.debug.html",
+                           code_base + ".canvas.release.html",
+                           code_base + ".canvas.js",
+                           code_base + ".debug.html",
+                           code_base + ".release.html",
+                           code_base + ".tzjs" ]
+            debug("code:dest:%s" % code_dests)
 
-        for dest in code_dests:
-            print '%s -> %s' % (f, dest)
-            do_build_code(dest, env, options)
+            for dest in code_dests:
+                print '%s -> %s' % (src, dest)
+                do_build_code(dest, env, options)
 
-    _log_stage('DONE')
+    _log_stage('END')
 
     return 0
 
