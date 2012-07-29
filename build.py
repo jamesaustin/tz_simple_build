@@ -1040,10 +1040,6 @@ def find_non_ascii(path, env):
     return non_ascii_count
 
 def main():
-    env = {}
-
-    templates = ['app']
-
     parser = OptionParser()
     parser.add_option('--clean', action='store_true', default=False, help="Only builds")
     parser.add_option('--clean-only', action='store_true', default=False, help="Only cleans")
@@ -1051,7 +1047,6 @@ def main():
     parser.add_option('--template', dest='templateName', help="Specify the template to build")
     parser.add_option('--find-non-ascii', action='store_true', default=False,
                       help="Searches for non ascii characters in the scripts")
-    parser.add_option('--development', action='store_true', help="Only builds the development build")
     parser.add_option('--closure', action='store_true', default=False, help="Use Google Closure to post process")
     parser.add_option('--verbose', action='store_true', help="Prints additional information about the build process")
     (options, args) = parser.parse_args()
@@ -1060,6 +1055,8 @@ def main():
         logging_config(level='INFO', format='[%(levelname)s %(module)s@%(lineno)d] %(message)s')
     else:
         logging_config(format='[%(levelname)s] %(message)s')
+
+    env = {}
 
     _log_stage('CONFIGURING')
     if not configure(env, options):
@@ -1088,62 +1085,58 @@ def main():
             return 0
 
     # Asset build
-    if len(args) > 0:
-        files = args
+    if not options.code_only:
+        _log_stage("ASSET BUILD (may be slow - disable with --code-only)")
+
+        # Mapping table
+
+        if not path_exists('staticmax'):
+           os.makedirs('staticmax')
+        (mapping_table_obj, build_deps) = gen_mapping('assets', 'staticmax')
+
+        # Write mapping table
+
+        with open('mapping_table.json', 'wb') as f:
+            json_dump(mapping_table_obj, f, separators=(',', ':'))
+
+        # Build all asset files
+
+        # print "Deps: %s" % build_deps
+
+        for src in build_deps:
+            dest = build_deps[src]
+            print "Building %s -> %s" % (src, dest)
+
+            result = do_build(src, dest, env, options)
+            if result:
+                error('Build failed')
+                return 1
+
+    # Code
+    _log_stage('CODE BUILD')
+    if options.templateName:
+        code_files = ['%s.js' % path_join('templates/', options.templateName)]
     else:
+        code_files = glob('templates/*.js')
+    debug("code:src:%s" % code_files)
 
-        if not options.code_only:
-            _log_stage("ASSET BUILD (may be slow - disable with --code-only)")
+    for f in code_files:
+        print 'IN: %s' % f
+        (code_base, code_ext) = path_splitext(path_split(f)[1])
 
-            # Mapping table
+        code_dests = [ code_base + ".canvas.debug.html",
+                       code_base + ".canvas.release.html",
+                       code_base + ".canvas.js",
+                       code_base + ".debug.html",
+                       code_base + ".release.html",
+                       code_base + ".tzjs" ]
+        debug("code:dest:%s" % code_dests)
 
-            if not path_exists('staticmax'):
-               os.makedirs('staticmax')
-            (mapping_table_obj, build_deps) = gen_mapping('assets', 'staticmax')
+        for dest in code_dests:
+            print 'OUT: %s' % dest
+            do_build_code(dest, env, options)
 
-            # Write mapping table
-
-            with open('mapping_table.json', 'wb') as f:
-                json_dump(mapping_table_obj, f, separators=(',', ':'))
-
-            # Build all asset files
-
-            # print "Deps: %s" % build_deps
-
-            for src in build_deps:
-                dest = build_deps[src]
-                print "Building %s -> %s" % (src, dest)
-
-                result = do_build(src, dest, env, options)
-                if result:
-                    error('Build failed')
-                    return 1
-
-        # Code
-        _log_stage('CODE BUILD')
-        if options.templateName:
-            code_files = ['%s.js' % path_join('templates/', options.templateName)]
-        else:
-            code_files = glob('templates/*.js')
-        debug("code:src:%s" % code_files)
-
-        for f in code_files:
-            print 'IN: %s' % f
-            (code_base, code_ext) = path_splitext(path_split(f)[1])
-
-            code_dests = [ code_base + ".canvas.debug.html",
-                           code_base + ".canvas.release.html",
-                           code_base + ".canvas.js",
-                           code_base + ".debug.html",
-                           code_base + ".release.html",
-                           code_base + ".tzjs" ]
-            debug("code:dest:%s" % code_dests)
-
-            for dest in code_dests:
-                print 'OUT: %s' % dest
-                do_build_code(dest, env, options)
-
-        _log_stage('DONE')
+    _log_stage('DONE')
 
     return 0
 
