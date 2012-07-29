@@ -483,28 +483,28 @@ def run_makehtml(env, options, input=None, mode=None, output=None, templates=[],
 
 def run_maketzjs(env, options, input=None, mode=None, MF=None, output=None, templates=[]):
     try:
-            maketzjs = env['MAKETZJS']
+        maketzjs = env['MAKETZJS']
     except KeyError as e:
-            error("Missing required env: %s " % str(e))
-            raise CalledProcessError(1, 'maketzjs')
+        error("Missing required env: %s " % str(e))
+        raise CalledProcessError(1, 'maketzjs')
 
     #TODO: version check
     args = [maketzjs]
     if mode is not None:
-            args.append('--mode')
-            args.append(mode)
+        args.append('--mode')
+        args.append(mode)
     if MF is not None:
-            args.append('-M')
-            args.append('--MF')
-            args.append(MF)
+        args.append('-M')
+        args.append('--MF')
+        args.append(MF)
     if output is not None:
-            args.append('-o')
-            args.append(output)
+        args.append('-o')
+        args.append(output)
     for t in templates:
-            args.append('-t')
-            args.append(t)
+        args.append('-t')
+        args.append(t)
     if input is not None:
-            args.append(input)
+        args.append(input)
 
     return exec_command(args, verbose=options.verbose, console=True)
 
@@ -539,19 +539,19 @@ def run_js2tzjs_jsinc(task):
 
 def run_cgfx2json(env, options, input=None, output=None):
     try:
-            cgfx2json = env['CGFX2JSON']
+        cgfx2json = env['CGFX2JSON']
     except KeyError as e:
-            error("Missing required env: %s " % str(e))
-            raise CalledProcessError(1, 'cgfx2json')
+        error("Missing required env: %s " % str(e))
+        raise CalledProcessError(1, 'cgfx2json')
 
     #TODO: version check
     args = [cgfx2json]
     if input is not None:
-            args.append('-i')
-            args.append(input)
+        args.append('-i')
+        args.append(input)
     if output is not None:
-            args.append('-o')
-            args.append(output)
+        args.append('-o')
+        args.append(output)
     return exec_command(args, verbose=options.verbose, console=True)
 
 def clean(env, options):
