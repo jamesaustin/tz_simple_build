@@ -1040,15 +1040,11 @@ def find_non_ascii(path, env):
     return non_ascii_count
 
 def main():
-
-    result = 0
     env = {}
 
     templates = ['app']
-    shaders = [] # Ignore temporarily ['draw2D']
 
     parser = OptionParser()
-
     parser.add_option('--clean', action='store_true', default=False, help="Only builds")
     parser.add_option('--clean-only', action='store_true', default=False, help="Only cleans")
     parser.add_option('--code-only', action='store_true', default=False, help="Build only the game code")
@@ -1148,63 +1144,8 @@ def main():
                 do_build_code(dest, env, options)
 
         _log_stage('DONE')
-        return 0
 
-        # files = []
-        # for s in shaders:
-        #     files.append('%s.cgfx' % s)
-
-        # result = build(files, env, options)
-        # if result == 0:
-        #     print 'Built Assets'
-        # else:
-        #     print 'Failed to build assets'
-        #     return result
-
-    # if yaml2json('mapping_table', 'mapping_table', True, env, options) == 0:
-    #     print 'Built Mapping Table'
-    # else:
-    #     print 'Failed Mapping Table'
-
-    if len(args) > 0:
-        files = args
-    else:
-        files = []
-        for t in templates:
-            if options.development:
-                if env['SDK_VERSION'] < StrictVersion('0.19.0'):
-                    files.append('%s.jsinc' % t)
-                    files.append('%s.development.html' % t)
-                else:
-                    files.append('%s.debug.html' % t)
-                    files.append('%s.canvas.debug.html' % t)
-            else:
-                if env['SDK_VERSION'] < StrictVersion('0.19.0'):
-                    files.append('%s.jsinc' % t)
-                    files.append('%s.development.html' % t)
-                    files.append('%s.release.html' % t)
-                    files.append('%s.tzjs' % t)
-                else:
-                    # Order is important
-                    files.append('%s.debug.html' % t)
-                    files.append('%s.default.debug.html' % t)
-
-                    files.append('%s.canvas.debug.html' % t)
-                    files.append('%s.canvas.default.debug.html' % t)
-
-                    files.append('%s.tzjs' % t)
-                    files.append('%s.release.html' % t)
-
-                    files.append('%s.canvas.js' % t)
-                    files.append('%s.canvas.release.html' % t)
-
-    result = build(files, env, options)
-    if result == 0:
-        print 'Built Templates'
-    else:
-        print 'Failed Templates'
-
-    return result
+    return 0
 
 if __name__ == "__main__":
     exit(main())
