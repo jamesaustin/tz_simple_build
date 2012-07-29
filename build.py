@@ -3,19 +3,24 @@
 
 import os
 import sys
-import glob
 
-from logging import info, warning, error, basicConfig as logging_config
 
+from glob import glob
 from platform import system, machine
 from subprocess import Popen, PIPE, STDOUT
-from simplejson import loads as json_loads, dump as json_dump, JSONDecodeError
+
 import yaml
 from hashlib import sha1
 import base64
+
 from shutil import copyfile, rmtree
 from optparse import OptionParser
 from distutils.version import StrictVersion
+
+from logging import info, warning, error, basicConfig as logging_config
+
+from simplejson import loads as json_loads, dump as json_dump, JSONDecodeError
+
 from genmapping import gen_mapping
 
 BUILDVERSION = '0.9.1'
@@ -1187,7 +1192,7 @@ def main():
         if options.templateName:
             code_files = [os.path.join('templates/', options.templateName) + '.js']
         else:
-            code_files = glob.glob('templates/*.js')
+            code_files = glob('templates/*.js')
 
         # print "CODE FILES: %s" % code_files
 
