@@ -1121,9 +1121,7 @@ def main():
     debug("code:src:%s" % code_files)
 
     for f in code_files:
-        print 'IN: %s' % f
         (code_base, code_ext) = path_splitext(path_split(f)[1])
-
         code_dests = [ code_base + ".canvas.debug.html",
                        code_base + ".canvas.release.html",
                        code_base + ".canvas.js",
@@ -1133,7 +1131,7 @@ def main():
         debug("code:dest:%s" % code_dests)
 
         for dest in code_dests:
-            print 'OUT: %s' % dest
+            print '%s -> %s' % (f, dest)
             do_build_code(dest, env, options)
 
     _log_stage('DONE')
