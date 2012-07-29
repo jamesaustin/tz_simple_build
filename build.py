@@ -612,7 +612,6 @@ def do_build_code(filepath, env, options):
                 else:
                     if target == '.canvas':
                         if buildtype == '.debug':
-                            _log_stage('CANVAS DEBUG')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='canvas-debug',
@@ -621,7 +620,6 @@ def do_build_code(filepath, env, options):
                                     template=" ".join(html_templates))
 
                         elif buildtype == '.release':
-                            _log_stage('CANVAS RELEASE')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='canvas',
@@ -632,7 +630,7 @@ def do_build_code(filepath, env, options):
                         else:
                             if options.verbose:
                                 warning("Build type not recognised: %s" % buildtype)
-                    if target == '.default':
+                    elif target == '.default':
                         (appname, defaultTarget) = path_splitext(appname)
                         if defaultTarget == '.canvas':
                             if buildtype == '.debug':
@@ -686,7 +684,6 @@ def do_build_code(filepath, env, options):
                     elif target == '':
                         # Blank target is plugin
                         if buildtype == '.debug':
-                            _log_stage('PLUGIN DEBUG')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='plugin-debug',
@@ -694,7 +691,6 @@ def do_build_code(filepath, env, options):
                                     templates=templates,
                                     template=" ".join(html_templates))
                         elif buildtype == '.release':
-                            _log_stage('PLUGIN RELEASE')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='plugin',
@@ -703,14 +699,12 @@ def do_build_code(filepath, env, options):
                                     templates=templates,
                                     template=" ".join(html_templates))
                         else:
-                            if options.verbose:
-                                warning("Build type not recognised: %s" % buildtype)
+                            warning("Build type not recognised: %s" % buildtype)
                     else:
-                        if options.verbose:
-                            warning("Target not recognised: %s" % target)
+                        warning("Target not recognised: %s" % target)
             except CalledProcessError as e:
                 builderror = 1
-                error('Command failed: ' + str(e))
+                error('Command failed: %s' % str(e))
 
     elif ext == '.tzjs':
         try:
@@ -1126,21 +1120,19 @@ def main():
 
                 result = do_build(src, dest, env, options)
                 if result:
-                    print "Build failed"
-                    exit(1)
+                    error('Build failed')
+                    return 1
 
         # Code
-
         _log_stage('CODE BUILD')
-
         if options.templateName:
-            code_files = [path_join('templates/', options.templateName) + '.js']
+            code_files = ['%s.js' % path_join('templates/', options.templateName)]
         else:
             code_files = glob('templates/*.js')
         debug("code:src:%s" % code_files)
 
         for f in code_files:
-            print "APP: %s" % f
+            print 'IN: %s' % f
             (code_base, code_ext) = path_splitext(path_split(f)[1])
 
             code_dests = [ code_base + ".canvas.debug.html",
@@ -1152,10 +1144,11 @@ def main():
             debug("code:dest:%s" % code_dests)
 
             for dest in code_dests:
+                print 'OUT: %s' % dest
                 do_build_code(dest, env, options)
 
-        print "DONE"
-        exit(0)
+        _log_stage('DONE')
+        return 0
 
         # files = []
         # for s in shaders:
