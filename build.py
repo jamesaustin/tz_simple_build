@@ -14,7 +14,7 @@ from hashlib import sha1
 from shutil import copyfile, rmtree
 from optparse import OptionParser
 from distutils.version import StrictVersion
-from logging import info, warning, error, basicConfig as logging_config
+from logging import debug, info, warning, error, basicConfig as logging_config
 
 from yaml import load as yaml_load, dump as yaml_dump
 from simplejson import loads as json_loads, dump as json_dump, JSONDecodeError
@@ -110,7 +110,6 @@ def check_path_py_tools(env, options):
     else:
         warning("Can't find optional %s path (Not set)" % (env_name))
     return (env_name, path)
-
 
 def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
                   default_arg=None):
@@ -236,10 +235,8 @@ def check_cgfx_tool(env, options):
     env[env_name] = tool
     return (env_name, tool)
 
-
 def configure(env, options):
 
-    print "Configuring..."
     app_root = os.getcwd()
     exe = ''
     turbulenz_os = ''
@@ -263,7 +260,6 @@ def configure(env, options):
 
     env['TURBULENZ_OS'] = turbulenz_os
     env['EXE_EXT_OS'] = exe
-
 
     try:
         engine_version_minor = StrictVersion('.'.join(ENGINEVERSION.split('.')[0:2]))
@@ -597,6 +593,9 @@ def clean(env, options):
 
 ############################################################
 
+def _print_stage(stage):
+    print '\n{0}\n{1: ^58}\n{0}\n'.format('-' * 58, stage)
+
 def do_build_code(filepath, env, options):
 
     builderror = 0
@@ -623,13 +622,7 @@ def do_build_code(filepath, env, options):
                 else:
                     if target == '.canvas':
                         if buildtype == '.debug':
-
-                            print ""
-                            print "----------------------------------------------------------"
-                            print "                   CANVAS DEBUG"
-                            print "----------------------------------------------------------"
-                            print ""
-
+                            _print_stage('CANVAS DEBUG')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='canvas-debug',
@@ -638,13 +631,7 @@ def do_build_code(filepath, env, options):
                                     template=" ".join(html_templates))
 
                         elif buildtype == '.release':
-
-                            print ""
-                            print "----------------------------------------------------------"
-                            print "                   CANVAS RELEASE"
-                            print "----------------------------------------------------------"
-                            print ""
-
+                            _print_stage('CANVAS RELEASE')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='canvas',
@@ -709,13 +696,7 @@ def do_build_code(filepath, env, options):
                     elif target == '':
                         # Blank target is plugin
                         if buildtype == '.debug':
-
-                            print ""
-                            print "----------------------------------------------------------"
-                            print "                   PLUGIN DEBUG"
-                            print "----------------------------------------------------------"
-                            print ""
-
+                            _print_stage('PLUGIN DEBUG')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='plugin-debug',
@@ -723,13 +704,7 @@ def do_build_code(filepath, env, options):
                                     templates=templates,
                                     template=" ".join(html_templates))
                         elif buildtype == '.release':
-
-                            print ""
-                            print "----------------------------------------------------------"
-                            print "                   PLUGIN RELEASE"
-                            print "----------------------------------------------------------"
-                            print ""
-
+                            _print_stage('PLUGIN RELEASE')
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
                                     mode='plugin',
@@ -808,7 +783,6 @@ def do_build_code(filepath, env, options):
             builderror = 1
             error('Command failed: ' + str(e))
 
-
 def google_compile(dependency_file, output_file):
 
     f = open(dependency_file, 'r')
@@ -858,12 +832,7 @@ def google_compile(dependency_file, output_file):
             'DEFAULT'
         ]
 
-    print ""
-    print "----------------------------------------------------------"
-    print "                   RUNNING CLOSURE COMPILER"
-    print "----------------------------------------------------------"
-    print ""
-
+    _print_stage('RUNNING CLOSURE COMPILER')
     exec_command(args, console=True, verbose=True, shell=True)
 
 def do_build(src, dest, env, options):
@@ -1107,10 +1076,11 @@ def main():
     (options, args) = parser.parse_args()
 
     if options.verbose:
-        logging_config(level='INFO', format='[%(levelname)s @%(lineno)d] %(message)s')
+        logging_config(level='INFO', format='[%(levelname)s %(module)s@%(lineno)d] %(message)s')
     else:
         logging_config(format='[%(levelname)s] %(message)s')
 
+    _print_stage('CONFIGURING')
     if not configure(env, options):
         result = 1
         print 'Failed to configure build'
@@ -1126,6 +1096,7 @@ def main():
 
     # Clean only
     if options.clean_only:
+        _print_stage('CLEANING')
         result = clean(env, options)
         if result != 0:
             print 'Failed to clean build'
@@ -1135,6 +1106,7 @@ def main():
 
     # Clean build first
     if options.clean:
+        _print_stage('CLEANING')
         result = clean(env, options)
         if result != 0:
             print 'Failed to clean build'
@@ -1148,12 +1120,7 @@ def main():
     else:
 
         if not options.code_only:
-
-            print ""
-            print "----------------------------------------------------------"
-            print "   ASSET BUILD (may be slow - disable with --code-only)"
-            print "----------------------------------------------------------"
-            print ""
+            _print_stage("ASSET BUILD (may be slow - disable with --code-only)")
 
             # Mapping table
 
@@ -1181,34 +1148,25 @@ def main():
 
         # Code
 
-        print ""
-        print "----------------------------------------------------------"
-        print "                   CODE BUILD"
-        print "----------------------------------------------------------"
-        print ""
+        _print_stage('CODE BUILD')
 
         if options.templateName:
             code_files = [path_join('templates/', options.templateName) + '.js']
         else:
             code_files = glob('templates/*.js')
-
-        # print "CODE FILES: %s" % code_files
+        debug("code:src:%s" % code_files)
 
         for f in code_files:
             print " APP: %s" % f
             (code_base, code_ext) = path_splitext(path_split(f)[1])
 
             code_dests = [ code_base + ".canvas.debug.html",
-
                            code_base + ".canvas.release.html",
                            code_base + ".canvas.js",
-
                            code_base + ".debug.html",
-
                            code_base + ".release.html",
                            code_base + ".tzjs" ]
-
-            # print "  CODE:FILES: %s" % code_dests
+            debug("code:dest:%s" % code_dests)
 
             for dest in code_dests:
                 do_build_code(dest, env, options)
