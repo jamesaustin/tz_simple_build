@@ -1115,7 +1115,7 @@ def main():
     # Code
     _log_stage('CODE BUILD')
     if options.templateName:
-        code_files = ['%s.js' % path_join('templates/', options.templateName)]
+        code_files = ['%s.js' % path_join('templates', options.templateName)]
     else:
         code_files = glob('templates/*.js')
     debug("code:src:%s" % code_files)
