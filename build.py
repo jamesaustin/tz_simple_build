@@ -1015,15 +1015,16 @@ def get_staticmax_name(output):
         ext = source_ext + final_ext
     return hash_value + ext
 
-def find_non_ascii(path, env, options):
-
+def find_non_ascii(path, env):
     non_ascii_count = 0
     for root, dirs, files in os.walk(path):
         for dir in dirs:
-            non_ascii_count += find_non_ascii(path_join(root, dir), env, options)
+            non_ascii_count += find_non_ascii(path_join(root, dir), env)
 
-        for file in [f for f in files if f.endswith(".js")]:
+        for file in [f for f in files if f.endswith('.js')]:
             filepath = path_join(root, file)
+            info('Checking: %s' % filepath)
+
             data = open(filepath)
             line = 0
             for l in data:
@@ -1035,10 +1036,10 @@ def find_non_ascii(path, env, options):
                         try:
                             s.encode('ascii')
                         except:
-                            print '%s: Non ASCII character at line:%s char:%s' % (filepath,line,char)
+                            warning('%s: Non ASCII character at line:%s char:%s' % (filepath, line, char))
                             non_ascii_count += 1
                 except UnicodeDecodeError as e:
-                    print '%s: Non ASCII character at line:%s char:%s' % (filepath,line,char)
+                    warning('%s: Non ASCII character at line:%s char:%s' % (filepath, line, char))
                     non_ascii_count += 1
             data.close()
 
@@ -1076,12 +1077,13 @@ def main():
         return 1
 
     if options.find_non_ascii:
-        result = find_non_ascii(env['APP_SCRIPTS'], env, options)
-        if result != 0:
-            print "Found non-ascii character in script"
+        _log_stage('NON-ASCII CHARACTERS')
+        count = find_non_ascii(env['APP_SCRIPTS'], env)
+        if count > 0:
+            error("Found non-ascii character in script")
         else:
-            print "Only ASCII found!"
-        return result
+            info("Only ASCII found!")
+        return count
 
     # Clean only or Clean build first
     if options.clean_only or options.clean:
