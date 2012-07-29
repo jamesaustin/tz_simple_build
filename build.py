@@ -2,23 +2,21 @@
 # Copyright (c) 2012 Turbulenz Limited
 
 import os
-import sys
-
 
 from glob import glob
 from platform import system, machine
 from subprocess import Popen, PIPE, STDOUT
+from os.path import join as path_join, isdir as path_isdir, splitext as path_splitext, exists as path_exists, \
+    split as path_split, expanduser as path_expanduser
 
-import yaml
+from base64 import urlsafe_b64encode
 from hashlib import sha1
-import base64
-
 from shutil import copyfile, rmtree
 from optparse import OptionParser
 from distutils.version import StrictVersion
-
 from logging import info, warning, error, basicConfig as logging_config
 
+from yaml import load as yaml_load, dump as yaml_dump
 from simplejson import loads as json_loads, dump as json_dump, JSONDecodeError
 
 from genmapping import gen_mapping
@@ -35,7 +33,7 @@ try:
 except KeyError:
     pass
 #USER_ENV_PATH = USER_SDK_PATH + "\env"
-USER_APP_JSLIB_PATH = os.path.join('scripts', 'turbulenz')
+USER_APP_JSLIB_PATH = path_join('scripts', 'turbulenz')
 
 # Clone of sh function from utils.turbulenz
 
@@ -85,7 +83,7 @@ def exec_command(command, cwd=None, env=None, verbose=True, console=False,
             Popen(command, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell)
 
 def removeDir(path, options):
-    if os.path.isdir(path):
+    if path_isdir(path):
         rmtree(path)
 
 def check_path_py_tools(env, options):
@@ -100,14 +98,14 @@ def check_path_py_tools(env, options):
         return (env_name, None)
 
     if turbulenz_os == 'macox' or turbulenz_os == 'linux64' or turbulenz_os or 'linux32':
-        path = os.path.join(env_path, 'bin')
+        path = path_join(env_path, 'bin')
     elif turbulenz_os == 'win32':
-        path = os.path.join(env_path, 'Scripts')
+        path = path_join(env_path, 'Scripts')
     else:
         error("Platform not recognised. Cannot configure build.")
         return (env_name, None)
 
-    if os.path.exists(path):
+    if path_exists(path):
         env[env_name] = path
     else:
         warning("Can't find optional %s path (Not set)" % (env_name))
@@ -153,16 +151,16 @@ def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
             error("Missing required env: %s " % str(e))
             return None
 
-        tool = os.path.join(pytools_root, tool_name + '.py')
-        if not os.path.exists(tool):
+        tool = path_join(pytools_root, tool_name + '.py')
+        if not path_exists(tool):
             error("Tool doesn't exist: %s" % tool)
             info("Path: %s" % tool)
 
         return tool
 
     def _pytools_local():
-        tool = os.path.join('tools', tool_name)
-        if not os.path.exists(tool):
+        tool = path_join('tools', tool_name)
+        if not path_exists(tool):
             error("Tool doesn't exist: %s" % tool)
             info("Path: %s" % tool)
 
@@ -220,8 +218,8 @@ def check_cgfx_tool(env, options):
         error("Missing required env: %s " % str(e))
         return (env_name, None)
 
-    tool = os.path.join(tools_root, 'bin', turbulenz_os, 'cgfx2json') + exe
-    if not os.path.exists(tool):
+    tool = path_join(tools_root, 'bin', turbulenz_os, 'cgfx2json') + exe
+    if not path_exists(tool):
         error("Can't find the cgfx2json tool: %s" % tool)
         return (env_name, None)
 
@@ -294,17 +292,17 @@ def configure(env, options):
         return False
 
     if 'USER_SDK_PATH' in globals():
-        sdk_root = os.path.expanduser(USER_SDK_PATH)
+        sdk_root = path_expanduser(USER_SDK_PATH)
     else:
         if turbulenz_os == 'win32':
-            sdk_root = os.path.expanduser(os.path.join('C:\\', 'Turbulenz', 'SDK', SDKVERSION))
+            sdk_root = path_expanduser(path_join('C:\\', 'Turbulenz', 'SDK', SDKVERSION))
         elif turbulenz_os == 'macosx' or turbulenz_os == 'linux32' or turbulenz_os == 'linux64':
-            sdk_root = os.path.expanduser(os.path.join('~/', 'Turbulenz', 'SDK', SDKVERSION))
+            sdk_root = path_expanduser(path_join('~/', 'Turbulenz', 'SDK', SDKVERSION))
         else:
             error("Platform not recognised. Cannot configure build.")
             return False
 
-    if not os.path.exists(sdk_root):
+    if not path_exists(sdk_root):
         print "Can't find the SDK specified: %s" % sdk_root
         print """If you are using a non-standard SDK path, either:
   1. define the TURBULENZ_SDK environment variable, or
@@ -317,7 +315,7 @@ def configure(env, options):
     if 'USER_ENV_PATH' in globals():
         env_path_expt = USER_ENV_PATH
     else:
-        env_path_expt = os.path.join(sdk_root, 'env')
+        env_path_expt = path_join(sdk_root, 'env')
 
     if env_path.lower() != env_path_expt.lower():
         error("The environment you are running from is not the same as expected for the target SDK")
@@ -332,9 +330,9 @@ def configure(env, options):
     env['APP_PAIR'] = (app_root + ',./')
     env['SDK_ROOT'] = sdk_root
 
-    tools_root = os.path.join(sdk_root, 'tools')
+    tools_root = path_join(sdk_root, 'tools')
     env['TOOLS_ROOT'] = tools_root
-    env['PYTOOLS_ROOT'] = os.path.join(app_root, 'tools')
+    env['PYTOOLS_ROOT'] = path_join(app_root, 'tools')
 
     (_, pytools_root) = check_path_py_tools(env, options)
     if pytools_root is None:
@@ -409,20 +407,20 @@ def configure(env, options):
                 else:
                     warning("Couldn't find cgfx2json tool (optional)")
 
-    env['APP_STATICMAX'] = os.path.join(app_root, 'staticmax')
-    env['APP_TEMPLATES'] = os.path.join(app_root, 'templates')
-    env['APP_SHADERS'] = os.path.join(app_root, 'assets', 'shaders')
-    env['APP_MATERIALS'] = os.path.join(app_root, 'assets', 'materials')
-    env['APP_MODELS'] = os.path.join(app_root, 'assets', 'models')
-    env['APP_TEXTURES'] = os.path.join(app_root, 'assets', 'textures')
-    env['APP_SOUNDS'] = os.path.join(app_root, 'assets', 'sounds')
-    env['APP_FONTS'] = os.path.join(app_root, 'assets', 'fonts')
-    env['APP_SCRIPTS'] = os.path.join(app_root, 'scripts')
+    env['APP_STATICMAX'] = path_join(app_root, 'staticmax')
+    env['APP_TEMPLATES'] = path_join(app_root, 'templates')
+    env['APP_SHADERS'] = path_join(app_root, 'assets', 'shaders')
+    env['APP_MATERIALS'] = path_join(app_root, 'assets', 'materials')
+    env['APP_MODELS'] = path_join(app_root, 'assets', 'models')
+    env['APP_TEXTURES'] = path_join(app_root, 'assets', 'textures')
+    env['APP_SOUNDS'] = path_join(app_root, 'assets', 'sounds')
+    env['APP_FONTS'] = path_join(app_root, 'assets', 'fonts')
+    env['APP_SCRIPTS'] = path_join(app_root, 'scripts')
 
     if 'USER_APP_JSLIB_PATH' in globals():
-        env['APP_JSLIB'] = os.path.join(app_root, USER_APP_JSLIB_PATH)
+        env['APP_JSLIB'] = path_join(app_root, USER_APP_JSLIB_PATH)
     else:
-        env['APP_JSLIB'] = os.path.join(app_root)
+        env['APP_JSLIB'] = path_join(app_root)
 
     return True
 
@@ -442,7 +440,7 @@ def run_html_rel(task):
     src = task['inputs'][0]
     tgt = task['outputs'][0]
     env = task['env']
-    tzjs = (os.path.splitext(src)[0] + '.tzjs')
+    tzjs = (path_splitext(src)[0] + '.tzjs')
     return exec_command(['python', '-m', env['HTML2TZHTML'],
                                    '-i', src,
                                    '-o', tgt,
@@ -565,13 +563,13 @@ def clean(env, options):
         removeDir(env['APP_STATICMAX'], options)
 
         # Clean mapping_table
-        mapping_path = os.path.join(env['APP_ROOT'], 'mapping_table.json')
-        if os.path.exists(mapping_path):
+        mapping_path = path_join(env['APP_ROOT'], 'mapping_table.json')
+        if path_exists(mapping_path):
                 os.remove(mapping_path)
 
         # Aggressive root level cleaning
         for f in os.listdir(env['APP_ROOT']):
-            (filename, ext) = os.path.splitext(f)
+            (filename, ext) = path_splitext(f)
 
             # Also cleans previous SDK content e.g. .jsinc
 
@@ -586,7 +584,7 @@ def clean(env, options):
                 os.remove(f)
             if ext == '.js':
                 #Only remove canvas js files, might have js in root folder
-                (appname, target) = os.path.splitext(filename)
+                (appname, target) = path_splitext(filename)
                 if target == '.canvas':
                     os.remove(f)
                 else:
@@ -604,18 +602,18 @@ def do_build_code(filepath, env, options):
     builderror = 0
     templates=[env['APP_ROOT'], env['APP_TEMPLATES'], env['APP_JSLIB']]
 
-    (filename, ext) = os.path.splitext(filepath)
+    (filename, ext) = path_splitext(filepath)
 
     if ext == '.html':
-        (appname, buildtype) = os.path.splitext(filename)
+        (appname, buildtype) = path_splitext(filename)
 
         if buildtype is not None:
             try:
-                (appname, target) = os.path.splitext(appname)
+                (appname, target) = path_splitext(appname)
 
                 html_templates = [ t + "/" + appname + ".html" for t in templates ]
-                html_templates = [ os.path.split(t)[1] \
-                                       for t in html_templates if os.path.exists(t) ]
+                html_templates = [ path_split(t)[1] \
+                                       for t in html_templates if path_exists(t) ]
                 # print "HTML templates: %s" % html_templates
                 # print "buildtype: %s" % buildtype
 
@@ -658,7 +656,7 @@ def do_build_code(filepath, env, options):
                             if options.verbose:
                                 warning("Build type not recognised: %s" % buildtype)
                     if target == '.default':
-                        (appname, defaultTarget) = os.path.splitext(appname)
+                        (appname, defaultTarget) = path_splitext(appname)
                         if defaultTarget == '.canvas':
                             if buildtype == '.debug':
                                 run_makehtml(env, options,
@@ -759,7 +757,7 @@ def do_build_code(filepath, env, options):
                     'options': options
                 })
             else:
-                (appname, target) = os.path.splitext(filename)
+                (appname, target) = path_splitext(filename)
                 if target == '':
                     run_maketzjs(env, options,
                             mode='plugin',
@@ -776,7 +774,7 @@ def do_build_code(filepath, env, options):
     elif ext == '.js':
         try:
             if env['SDK_VERSION'] >= StrictVersion('0.19.0'):
-                (appname, target) = os.path.splitext(filename)
+                (appname, target) = path_splitext(filename)
                 if target == '.canvas':
 
                     #dependency_file = appname + '.deps.js'
@@ -873,7 +871,7 @@ def do_build(src, dest, env, options):
     builderror = 0
     templates=[env['APP_ROOT'], env['APP_TEMPLATES'], env['APP_JSLIB']]
 
-    (filename, ext) = os.path.splitext(src)
+    (filename, ext) = path_splitext(src)
 
     if ext == '.cgfx':
         try:
@@ -938,7 +936,7 @@ def json2yaml(source_filename, dest_filename, is_mapping_table):
                     if mapping_version == 1.0:
                         json_dict = json_dict['urnmapping']
                         if json_dict:
-                            yaml.dump(json_dict, yaml_file, default_flow_style=False)
+                            yaml_dump(json_dict, yaml_file, default_flow_style=False)
                         else:
                             print ('Cannot find urnmapping data')
                             result = 1
@@ -949,7 +947,7 @@ def json2yaml(source_filename, dest_filename, is_mapping_table):
                     print 'No version information in mapping table'
                     result = 1
             else:
-                yaml.dump(json_dict, yaml_file, default_flow_style=False)
+                yaml_dump(json_dict, yaml_file, default_flow_style=False)
 
     if json_file is not None:
         json_file.close()
@@ -976,7 +974,7 @@ def yaml2json(source_filename, dest_filename, is_mapping_table, env, options, in
         print str(e)
         result = 1
     else:
-        yaml_data = yaml.load(yaml_file)
+        yaml_data = yaml_load(yaml_file)
         if yaml_data is None:
             print ('Failed to decode response for: %s' % yaml_filename)
             result = 1
@@ -986,7 +984,7 @@ def yaml2json(source_filename, dest_filename, is_mapping_table, env, options, in
                 yaml_dict = { 'version': 1.0 }
 
                 staticmax_path = env['APP_STATICMAX']
-                if not os.path.isdir(staticmax_path):
+                if not path_isdir(staticmax_path):
                     os.makedirs(staticmax_path)
 
                 # Process assets
@@ -994,7 +992,7 @@ def yaml2json(source_filename, dest_filename, is_mapping_table, env, options, in
                     src = yaml_data[entry]
                     hash = get_staticmax_name(src)
                     if hash is not None:
-                        dst = os.path.join('staticmax', hash)
+                        dst = path_join('staticmax', hash)
                         try:
                             copyfile(src, dst)
                         except IOError as e:
@@ -1042,15 +1040,15 @@ def get_target_hash(target_filepath, target_ext):
         print str(e)
         return None
     else:
-        return base64.urlsafe_b64encode(sha1_hash.digest()).rstrip('=')
+        return urlsafe_b64encode(sha1_hash.digest()).rstrip('=')
 
 def get_staticmax_name(output):
-    (final_path, final_ext) = os.path.splitext(output)
+    (final_path, final_ext) = path_splitext(output)
     hash_value = get_target_hash(output, final_ext.lower())
     if hash_value is None:
         return None
 
-    (source_path, source_ext) = os.path.splitext(final_path)
+    (source_path, source_ext) = path_splitext(final_path)
     if source_ext is None:
         # Single ext
         ext = final_ext
@@ -1063,10 +1061,10 @@ def find_non_ascii(path, env, options):
     non_ascii_count = 0
     for root, dirs, files in os.walk(path):
         for dir in dirs:
-            non_ascii_count += find_non_ascii(os.path.join(root, dir), env, options)
+            non_ascii_count += find_non_ascii(path_join(root, dir), env, options)
 
         for file in [f for f in files if f.endswith(".js")]:
-            filepath = os.path.join(root, file)
+            filepath = path_join(root, file)
             data = open(filepath)
             line = 0
             for l in data:
@@ -1159,7 +1157,7 @@ def main():
 
             # Mapping table
 
-            if not os.path.exists('staticmax'):
+            if not path_exists('staticmax'):
                os.makedirs('staticmax')
             (mapping_table_obj, build_deps) = gen_mapping('assets', 'staticmax')
 
@@ -1190,7 +1188,7 @@ def main():
         print ""
 
         if options.templateName:
-            code_files = [os.path.join('templates/', options.templateName) + '.js']
+            code_files = [path_join('templates/', options.templateName) + '.js']
         else:
             code_files = glob('templates/*.js')
 
@@ -1198,7 +1196,7 @@ def main():
 
         for f in code_files:
             print " APP: %s" % f
-            (code_base, code_ext) = os.path.splitext(os.path.split(f)[1])
+            (code_base, code_ext) = path_splitext(path_split(f)[1])
 
             code_dests = [ code_base + ".canvas.debug.html",
 
