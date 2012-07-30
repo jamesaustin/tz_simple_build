@@ -100,7 +100,7 @@ def mkdir(path):
 
 ############################################################
 
-def check_path_py_tools(env, options):
+def check_path_py_tools(env):
 
     path = None
     env_name = 'PYTOOLS_ROOT'
@@ -243,8 +243,8 @@ def check_cgfx_tool(env, options):
         error("Failed to run tool cgfx2json:")
         print args
         return (env_name, None)
-    if options.verbose:
-        print "Result: %s" % str(result)
+
+    info("Result: %s" % str(result))
 
     env[env_name] = tool
     return (env_name, tool)
@@ -294,8 +294,7 @@ def configure(env, options):
         return False
 
     if engine_version != sdk_version:
-        if options.verbose:
-            warning("Target engine and SDK version don't match. Engine: %s, SDK: %s" % (engine_version, sdk_version))
+        warning("Target engine and SDK version don't match. Engine: %s, SDK: %s" % (engine_version, sdk_version))
 
     if engine_version_minor != sdk_version_minor:
         error("Target engine and SDK minor versions are not compatible. Engine: %s, SDK: %s" % (engine_version_minor, sdk_version_minor))
@@ -344,7 +343,7 @@ def configure(env, options):
     env['TOOLS_ROOT'] = tools_root
     env['PYTOOLS_ROOT'] = path_join(app_root, 'tools')
 
-    (_, pytools_root) = check_path_py_tools(env, options)
+    (_, pytools_root) = check_path_py_tools(env)
     if pytools_root is None:
         warning("Path pytools_root has not been set (optional)")
 
@@ -594,8 +593,7 @@ def do_build_code(filepath, env, options):
                 # print "buildtype: %s" % buildtype
 
                 if buildtype == '.development':
-                    if options.verbose:
-                        warning("'development' should now be 'debug' and has not been built. Change the name of the destination file")
+                    warning("'development' should now be 'debug' and has not been built. Change the name of the destination file")
                 else:
                     if target == '.canvas':
                         if buildtype == '.debug':
@@ -615,8 +613,7 @@ def do_build_code(filepath, env, options):
                                     code=(appname + target + '.js'),
                                     template=" ".join(html_templates))
                         else:
-                            if options.verbose:
-                                warning("Build type not recognised: %s" % buildtype)
+                            warning("Build type not recognised: %s" % buildtype)
                     elif target == '.default':
                         (appname, defaultTarget) = path_splitext(appname)
                         if defaultTarget == '.canvas':
@@ -634,8 +631,7 @@ def do_build_code(filepath, env, options):
                                         output=filepath,
                                         templates=templates)
                             else:
-                                if options.verbose:
-                                    warning("Build type not recognised: %s" % buildtype)
+                                warning("Build type not recognised: %s" % buildtype)
                         if defaultTarget == '':
                             if buildtype == '.debug':
                                 run_makehtml(env, options,
@@ -651,8 +647,7 @@ def do_build_code(filepath, env, options):
                                         output=filepath,
                                         templates=" ".join(html_templates))
                             else:
-                                if options.verbose:
-                                    warning("Build type not recognised: %s" % buildtype)
+                                warning("Build type not recognised: %s" % buildtype)
                         if buildtype == '.debug':
                             run_makehtml(env, options,
                                     input=(appname + '.js'),
@@ -666,8 +661,7 @@ def do_build_code(filepath, env, options):
                                     output=filepath,
                                     templates=" ".join(html_templates))
                         else:
-                            if options.verbose:
-                                warning("Build type not recognised: %s" % buildtype)
+                            warning("Build type not recognised: %s" % buildtype)
                     elif target == '':
                         # Blank target is plugin
                         if buildtype == '.debug':
@@ -711,8 +705,7 @@ def do_build_code(filepath, env, options):
                             output=filepath,
                             templates=templates)
                 else:
-                    if options.verbose:
-                        warning("Target not recognised: %s" % target)
+                    warning("Target not recognised: %s" % target)
         except CalledProcessError as e:
             builderror = 1
             error('Command failed: ' + str(e))
@@ -736,8 +729,7 @@ def do_build_code(filepath, env, options):
                         google_compile(dependency_file, filename + ext)
 
                 else:
-                    if options.verbose:
-                        warning("Target not recognised: %s" % target)
+                    warning("Target not recognised: %s" % target)
         except CalledProcessError as e:
             builderror = 1
             error('Command failed: ' + str(e))
