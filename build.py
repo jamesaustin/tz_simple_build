@@ -254,7 +254,6 @@ def configure(env, options):
     app_root = os.getcwd()
     exe = ''
     turbulenz_os = ''
-    result = False
 
     system_name = system()
     machine_name = machine()
@@ -270,7 +269,8 @@ def configure(env, options):
         turbulenz_os = 'macosx'
 
     if turbulenz_os == '':
-        error("Build not supported on this platform")
+        error("Build not supported on this system: %s platform: %s" % (system_name, machine_name))
+        return False
 
     env['TURBULENZ_OS'] = turbulenz_os
     env['EXE_EXT_OS'] = exe
@@ -435,29 +435,6 @@ def configure(env, options):
         env['APP_JSLIB'] = path_join(app_root)
 
     return True
-
-def run_html_dev(task):
-    src = task['inputs'][0]
-    inc = task['inputs'][1]
-    tgt = task['outputs'][0]
-    env = task['env']
-    args = ['python', '-m', env['HTML2TZHTML'],
-                      '-i', src,
-                      '-o', tgt,
-                      '-j', inc,
-                      '-t', env['APP_TEMPLATES']]
-    return exec_command(args, verbose=task['options'].verbose, console=True)
-
-def run_html_rel(task):
-    src = task['inputs'][0]
-    tgt = task['outputs'][0]
-    env = task['env']
-    tzjs = (path_splitext(src)[0] + '.tzjs')
-    return exec_command(['python', '-m', env['HTML2TZHTML'],
-                                   '-i', src,
-                                   '-o', tgt,
-                                   '-z', tzjs,
-                                   '-t', env['APP_TEMPLATES']], verbose=task['options'].verbose, console=True)
 
 def run_makehtml(env, options, input=None, mode=None, output=None, templates=[], code=None, template=None):
     try:
