@@ -158,10 +158,10 @@ def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
             break
     else:
         _error("Failed to find tool: %s" % tool_name)
-        return (env_name, None)
+        return None
 
     # Tool runs, check version
-    env[env_name] = tool
+    env[env_name] = tool #!!!
 
     # Check the version info matches
     if exp_version_str:
@@ -172,12 +172,12 @@ def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
             result = exec_command(args, verbose=options.verbose, console=options.verbose)
             if result != exp_version_str:
                 error("Tool version returned: %s" % result)
-                return (env_name, None)
+                return None
         except CalledProcessError:
             error("Tool failed to print version")
-            return (env_name, None)
+            return None
 
-    return (env_name, tool)
+    return tool
 
 
 class Tool(object):
@@ -187,6 +187,8 @@ class Tool(object):
 
     executable = None
     ext = None
+
+    tool = None
 
     required = False
     before = None
@@ -206,23 +208,20 @@ class Tool(object):
     def __init__(self, env, options, sdk_version):
         required = self._required(sdk_version)
         if self.module:
-            (name, tool) = check_py_tool(self.name, self.module, env, options,
-                                         default_arg=self.default_arg,
-                                         required=required)
+            self.tool = check_py_tool(self.name, self.module, env, options,
+                                      default_arg=self.default_arg,
+                                      required=required)
         elif self.executable:
-            (name, tool) = self.configure(env, options)
+            self.tool = self.configure(env, options)
 
-        try:
-            if not tool:
-                if required:
-                    error("Couldn't find tool: %s" % self.name)
-                else:
-                    warning("Couldn't find tool: %s (optional)" % self.name)
+        if not self.tool:
+            if required:
+                error("Couldn't find tool: %s" % self.name)
+                exit(1)
             else:
-                info("%s: %s" % (name, env[name]))
-        except:
-            error("Couldn't configure tool: %s" % self.module)
-            exit(1)
+                warning("Couldn't find tool: %s (optional)" % self.name)
+        else:
+            info("%s: %s" % (self.name, self.tool))
 
     def configure(self, env, options):
         pass
@@ -276,31 +275,28 @@ class CGFX2JSON(Tool):
     executable = 'cgfx2json'
 
     def configure(self, env, options):
-        env_name = 'CGFX2JSON'
-        try:
-            tools_root = env['TOOLS_ROOT']
-            turbulenz_os =  env['TURBULENZ_OS']
-            exe = env['EXE_EXT_OS']
-        except KeyError as e:
-            error("Missing required env: %s " % str(e))
-            return (env_name, None)
+        tools_root = env['TOOLS_ROOT']
+        turbulenz_os =  env['TURBULENZ_OS']
+        exe = env['EXE_EXT_OS']
 
-        tool = path_join(tools_root, 'bin', turbulenz_os, 'cgfx2json') + exe
+        tool = path_join(tools_root, 'bin', turbulenz_os, 'cgfx2json' + exe)
         if not path_exists(tool):
             error("Can't find the cgfx2json tool: %s" % tool)
-            return (env_name, None)
+            return None
 
         args = [tool]
         try:
             result = exec_command(args, verbose=options.verbose, console=options.verbose)
         except CalledProcessError:
             info("Failed to run tool cgfx2json: %s" % args)
-            return (env_name, None)
+            return None
+        else:
+            info("Result: %s" % str(result))
+            return tool
 
-        info("Result: %s" % str(result))
-
-        env[env_name] = tool
-        return (env_name, tool)
+    def build(self, env, options, input=None, output=None):
+        args = [self.tool, '-i', input, '-o', output]
+        exec_command(args, verbose=options.verbose, console=True)
 
 
 def configure(env, options):
@@ -396,9 +392,10 @@ def configure(env, options):
     if pytools_root is None:
         warning("Path pytools_root has not been set (optional)")
 
-    tools = [DAE2JSON, BMFONT2JSON, MC2JSON, JS2TZJS, HTML2TZHTML, MAKETZJS, MAKEHTML, CGFX2JSON]
-    env['TOOLS'] = [t(env, options, sdk_version) for t in tools]
-
+    for tool in [DAE2JSON, BMFONT2JSON, MC2JSON, JS2TZJS, HTML2TZHTML, MAKETZJS, MAKEHTML, CGFX2JSON]:
+        t = tool(env, options, sdk_version)
+        env[t.name] = t
+        
     env['MAPPING_TABLE'] = 'mapping_table.json'
     env['APP_MAPPING_TABLE'] = path_join(app_root, env['MAPPING_TABLE'])
     env['APP_STATICMAX'] = path_join(app_root, 'staticmax')
@@ -507,23 +504,6 @@ def run_js2tzjs_jsinc(task):
             '--ev', env['ENGINE_VERSION_STR']]
 
     return exec_command(args, verbose=task['options'].verbose, console=True)
-
-def run_cgfx2json(env, options, input=None, output=None):
-    try:
-        cgfx2json = env['CGFX2JSON']
-    except KeyError as e:
-        error("Missing required env: %s " % str(e))
-        raise CalledProcessError(1, 'cgfx2json')
-
-    #TODO: version check
-    args = [cgfx2json]
-    if input is not None:
-        args.append('-i')
-        args.append(input)
-    if output is not None:
-        args.append('-o')
-        args.append(output)
-    return exec_command(args, verbose=options.verbose, console=True)
 
 def clean(env):
     try:
@@ -782,44 +762,23 @@ def google_compile(dependency_file, output_file):
     exec_command(args, console=True, verbose=True, shell=True)
 
 def do_build(src, dest, env, options):
-
-    builderror = 0
-    templates=[env['APP_ROOT'], env['APP_TEMPLATES'], env['APP_JSLIB']]
-
-    (filename, ext) = path_splitext(src)
-
-    if ext == '.cgfx':
-        try:
-            run_cgfx2json(env, options, input=src, output=dest)
-        except CalledProcessError as e:
-            builderror = 1
-            error('Command failed: ' + str(e))
-
-    elif ext == '.dae':
-        try:
+    (_, ext) = path_splitext(src)
+    try:
+        if ext == '.cgfx':
+            env['CGFX2JSON'].build(env, options, input=src, output=dest)
+        elif ext == '.dae':
             exec_command("%s -i %s -o %s" % (env['DAE2JSON'], src, dest))
-        except CalledProcessError as e:
-            builderror = 1
-            error('Command failed: ' + str(e))
-
-    elif ext == '.fnt':
-        try:
+        elif ext == '.fnt':
             exec_command("%s -i %s -o %s" % (env['BMFONT2JSON'], src, dest))
-        except CalledProcessError as e:
-            builderror = 1
-            error('Command failed: ' + str(e))
-
-    elif ext == '.schematic':
-        try:
+        elif ext == '.schematic':
             exec_command("%s -i %s -o %s" % (env['MC2JSON'], src, dest))
-        except CalledProcessError as e:
-            builderror = 1
-            error('Command failed: ' + str(e))
-
+        else:
+            copyfile(src, dest)
+    except CalledProcessError as e:
+        error('Command failed: ' + str(e))
+        return False
     else:
-        copyfile(src, dest)
-
-    return builderror
+        return True
 
 def find_non_ascii(path, env):
     non_ascii_count = 0
@@ -915,8 +874,8 @@ def main():
         # Build all asset files
         for src, dest in build_deps.iteritems():
             _log(src, dest)
-            result = do_build(src, dest, env, options)
-            if result:
+            success = do_build(src, dest, env, options)
+            if not success:
                 error('Build failed')
                 return 1
 
