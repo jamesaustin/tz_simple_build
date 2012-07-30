@@ -126,131 +126,184 @@ def check_path_py_tools(env):
     return (env_name, path)
 
 def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
-                  default_arg=None):
+                  default_arg=None, required=False):
+    if required:
+        _warning = warning
+        _error = error
+    else:
+        _warning = info
+        _error = info
 
-    if env_name is None or env_name == '':
-        error("No env_name specified")
-        return (None, None)
+    info("Searching for tool: %s" % tool_name)
 
-    info("Checking: " + tool_name)
-    tool = None
+    tools = [
+        tool_name,
+        path_join(env['PYTOOLS_ROOT'], tool_name),
+        path_join(env['PYTOOLS_ROOT'], tool_name + '.py'),
+        path_join('tools', tool_name),
+        path_join('tools', tool_name + '.py')
+    ]
 
-    def _default():
-        try:
-            turbulenz_os = env['TURBULENZ_OS']
-        except KeyError as e:
-            error("Missing required env: %s " % str(e))
-            return None
+    for tool in tools:
+        info("Calling tool: %s" % tool)
 
-        if turbulenz_os == 'macosx' or turbulenz_os == 'linux64' or turbulenz_os == 'linux32':
-            tool = tool_name
-        elif turbulenz_os == 'win32':
-            tool = tool_name
-        else:
-            error("Platform not recognised. Cannot configure build.")
-            return None
-
-        debug("turbulenz_os: %s" % turbulenz_os)
-        info("TOOL: %s" % tool)
-        return tool
-
-    def _pytools_root():
-        # Attempt to use tools_root
-        info("Attempting to look in the python tools root")
-
-        try:
-            pytools_root = env['PYTOOLS_ROOT']
-        except KeyError:
-            error("Missing required env: %s " % str(e))
-            return None
-
-        tool = path_join(pytools_root, tool_name + '.py')
-        if not path_exists(tool):
-            error("Tool doesn't exist: %s" % tool)
-            info("Path: %s" % tool)
-
-        return tool
-
-    def _pytools_local():
-        tool = path_join('tools', tool_name)
-        if not path_exists(tool):
-            error("Tool doesn't exist: %s" % tool)
-            info("Path: %s" % tool)
-
-        return tool
-
-    for t in [_default, _pytools_root, _pytools_local]:
-        tool = t()
-        if not tool:
-            return (env_name, None)
-
-        # Check tool runs
-        info("Calling tool: " + tool)
         args = [tool]
         if default_arg:
             args.append(default_arg)
         try:
             result = exec_command(args, verbose=options.verbose, console=options.verbose)
         except CalledProcessError:
-            warning("Failed to run tool as:")
-            print args
-            warning("You're environment may not be setup correctly")
+            _warning("Failed to run tool as: %s" % args)
         else:
             break
     else:
-        error("Failed to find tool: %s" % tool_name)
+        _error("Failed to find tool: %s" % tool_name)
         return (env_name, None)
 
     # Tool runs, check version
     env[env_name] = tool
 
-    info("Checking version")
     # Check the version info matches
     if exp_version_str:
+        info("Checking version")
+
         args = [tool, '--version']
         try:
             result = exec_command(args, verbose=options.verbose, console=options.verbose)
             if result != exp_version_str:
                 error("Tool version returned: %s" % result)
-                return False
-
+                return (env_name, None)
         except CalledProcessError:
             error("Tool failed to print version")
+            return (env_name, None)
+
+    return (env_name, tool)
+
+
+class Tool(object):
+    name = None
+    module = None
+    default_arg = None
+
+    executable = None
+    ext = None
+
+    required = False
+    before = None
+    after = None
+
+    def _required(self, sdk_version):
+        if self.required:
+            if self.before:
+                return sdk_version < self.before
+            elif self.after:
+                return sdk_version >= self.after
+            else:
+                return True
+        else:
             return False
 
-    return (env_name, tool)
+    def __init__(self, env, options, sdk_version):
+        required = self._required(sdk_version)
+        if self.module:
+            (name, tool) = check_py_tool(self.name, self.module, env, options,
+                                         default_arg=self.default_arg,
+                                         required=required)
+        elif self.executable:
+            (name, tool) = self.configure(env, options)
 
-def check_cgfx_tool(env, options):
+        try:
+            if not tool:
+                if required:
+                    error("Couldn't find tool: %s" % self.name)
+                else:
+                    warning("Couldn't find tool: %s (optional)" % self.name)
+            else:
+                info("%s: %s" % (name, env[name]))
+        except:
+            error("Couldn't configure tool: %s" % self.module)
+            exit(1)
 
-    env_name = 'CGFX2JSON'
-    try:
-        tools_root = env['TOOLS_ROOT']
-        turbulenz_os =  env['TURBULENZ_OS']
-        exe = env['EXE_EXT_OS']
-    except KeyError as e:
-        error("Missing required env: %s " % str(e))
-        return (env_name, None)
+    def configure(self, env, options):
+        pass
 
-    tool = path_join(tools_root, 'bin', turbulenz_os, 'cgfx2json') + exe
-    if not path_exists(tool):
-        error("Can't find the cgfx2json tool: %s" % tool)
-        return (env_name, None)
+    def build():
+        pass
 
-    args = [tool]
-    try:
-        result = exec_command(args, verbose=options.verbose, console=options.verbose)
-    except CalledProcessError:
-        error("Failed to run tool cgfx2json:")
-        print args
-        return (env_name, None)
+class DAE2JSON(Tool):
+    name = 'DAE2JSON'
+    module = 'dae2json'
+    ext = '.dae'
 
-    info("Result: %s" % str(result))
+class BMFONT2JSON(Tool):
+    name = 'BMFONT2JSON'
+    module = 'bmfont2json'
 
-    env[env_name] = tool
-    return (env_name, tool)
+class MC2JSON(Tool):
+    name = 'MC2JSON'
+    module = 'mc2json'
+    default_arg = '--version'
+    ext = '.schema'
+
+class JS2TZJS(Tool):
+    name = 'JS2TZJS'
+    module = 'js2tzjs'
+    required = True
+    before = StrictVersion('0.19.0')
+
+class HTML2TZHTML(Tool):
+    name = 'HTML2TZHTML'
+    module = 'html2tzhtml'
+    required = True
+    before = StrictVersion('0.19.0')
+
+class MAKETZJS(Tool):
+    name = 'MAKETZJS'
+    module = 'maketzjs'
+    default_arg = '--version'
+    required = True
+    after = StrictVersion('0.19.0')
+
+class MAKEHTML(Tool):
+    name = 'MAKEHTML'
+    module = 'makehtml'
+    default_arg = '--version'
+    required = True
+    after = StrictVersion('0.19.0')
+
+class CGFX2JSON(Tool):
+    name = 'CGFX2JSON'
+    executable = 'cgfx2json'
+
+    def configure(self, env, options):
+        env_name = 'CGFX2JSON'
+        try:
+            tools_root = env['TOOLS_ROOT']
+            turbulenz_os =  env['TURBULENZ_OS']
+            exe = env['EXE_EXT_OS']
+        except KeyError as e:
+            error("Missing required env: %s " % str(e))
+            return (env_name, None)
+
+        tool = path_join(tools_root, 'bin', turbulenz_os, 'cgfx2json') + exe
+        if not path_exists(tool):
+            error("Can't find the cgfx2json tool: %s" % tool)
+            return (env_name, None)
+
+        args = [tool]
+        try:
+            result = exec_command(args, verbose=options.verbose, console=options.verbose)
+        except CalledProcessError:
+            info("Failed to run tool cgfx2json: %s" % args)
+            return (env_name, None)
+
+        info("Result: %s" % str(result))
+
+        env[env_name] = tool
+        return (env_name, tool)
+
 
 def configure(env, options):
-
     app_root = os.getcwd()
     exe = ''
     turbulenz_os = ''
@@ -334,87 +387,17 @@ def configure(env, options):
         return False
 
     env['ENV_PATH'] = env_path
-
     env['APP_ROOT'] = app_root
-    env['APP_PAIR'] = (app_root + ',./')
     env['SDK_ROOT'] = sdk_root
-
-    tools_root = path_join(sdk_root, 'tools')
-    env['TOOLS_ROOT'] = tools_root
+    env['TOOLS_ROOT'] = path_join(sdk_root, 'tools')
     env['PYTOOLS_ROOT'] = path_join(app_root, 'tools')
 
     (_, pytools_root) = check_path_py_tools(env)
     if pytools_root is None:
         warning("Path pytools_root has not been set (optional)")
 
-    # Check for the existence of tools
-    if sdk_version < StrictVersion('0.19.0'):
-        required = dict(JS2TZJS=True,
-                        HTML2TZHTML=True,
-                        CGFX2JSON=False)
-    else:
-        required = dict(MAKETZJS=True,
-                        MAKEHTML=True,
-                        CGFX2JSON=False)
-
-    (DAE2JSON, dae2json) = check_py_tool('DAE2JSON', 'dae2json', env, options)
-    if dae2json is None:
-        raise Exception("can't find dae2json tool")
-    info("dae2json: %s" % env['DAE2JSON'])
-
-    (BMFONT2JSON, bmfont2json) = check_py_tool('BMFONT2JSON', 'bmfont2json', env, options)
-    if bmfont2json is None:
-        raise Exception("can't find bmfont2json tool")
-    info("bmfont2json: %s" % env['BMFONT2JSON'])
-
-    (MC2JSON, mc2json) = check_py_tool('MC2JSON', 'mc2json', env, options, default_arg='--version')
-    if mc2json is None:
-        warning("Couldn't find mc2json tool (optional)")
-    else:
-        info("mc2json: %s" % env['MC2JSON'])
-
-    for (env_name, req) in required.iteritems():
-        if env_name == 'JS2TZJS':
-            (JS2TZJS, js2tzjs) = check_py_tool('JS2TZJS', 'js2tzjs', env, options)
-            if js2tzjs is None:
-                if req:
-                    error("Couldn't find js2tzjs tool (required)")
-                    return False
-                else:
-                    warning("Couldn't find js2tzjs tool (optional)")
-        if env_name == 'HTML2TZHTML':
-            (HTML2TZHTML, html2tzhtml) = check_py_tool('HTML2TZHTML','html2tzhtml', env, options)
-            if html2tzhtml is None:
-                if req:
-                    error("Couldn't find html2tzhtml tool (required)")
-                    return False
-                else:
-                    warning("Couldn't find html2tzhtml tool (optional)")
-        if env_name == 'MAKETZJS':
-            (MAKETZJS, maketzjs) = check_py_tool('MAKETZJS', 'maketzjs', env, options, default_arg='--version')
-            if maketzjs is None:
-                if req:
-                    error("Couldn't find maketzjs tool (required)")
-                    return False
-                else:
-                    warning("Couldn't find maketzjs tool (optional)")
-        if env_name == 'MAKEHTML':
-            (MAKEHTML, makehtml) = check_py_tool('MAKEHTML', 'makehtml', env, options, default_arg='--version')
-            if makehtml is None:
-                if req:
-                    error("Couldn't find makehtml tool (required)")
-                    return False
-                else:
-                    warning("Couldn't find makehtml tool (optional)")
-
-        if env_name == 'CGFX2JSON':
-            (CGFX2JSON, cgfx2json) = check_cgfx_tool(env, options)
-            if cgfx2json is None:
-                if req:
-                    error("Couldn't find cgfx2json tool (required)")
-                    return False
-                else:
-                    warning("Couldn't find cgfx2json tool (optional)")
+    tools = [DAE2JSON, BMFONT2JSON, MC2JSON, JS2TZJS, HTML2TZHTML, MAKETZJS, MAKEHTML, CGFX2JSON]
+    env['TOOLS'] = [t(env, options, sdk_version) for t in tools]
 
     env['MAPPING_TABLE'] = 'mapping_table.json'
     env['APP_MAPPING_TABLE'] = path_join(app_root, env['MAPPING_TABLE'])
