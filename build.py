@@ -781,19 +781,19 @@ def google_compile(dependency_file, output_file):
     #optimization_level = 'ADVANCED_OPTIMIZATIONS'
 
     args = [
-            'java',
-            '-jar',
-            'build/compiler.jar',
-            '--version',
-            '--compilation_level',
-            optimization_level,
-            '--flagfile',
-            flag_file_path,
-            '--js_output_file',
-            output_file,
-            '--warning_level',
-            'DEFAULT'
-        ]
+        'java',
+        '-jar',
+        'build/compiler.jar',
+        '--version',
+        '--compilation_level',
+        optimization_level,
+        '--flagfile',
+        flag_file_path,
+        '--js_output_file',
+        output_file,
+        '--warning_level',
+        'DEFAULT'
+    ]
 
     _log_stage('RUNNING CLOSURE COMPILER')
     exec_command(args, console=True, verbose=True, shell=True)
