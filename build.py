@@ -532,64 +532,66 @@ def build_code(src, dst, env, options):
 
     dependency_file = '%s.deps' % src
 
-    templates=[env['APP_ROOT'], env['APP_TEMPLATES'], env['APP_JSLIB']]
-    html_templates = [ ]
-    for t in templates:
-        template = path_join(t, '%s.html' % src)
+    templates_dirs = [env['APP_ROOT'], env['APP_TEMPLATES'], env['APP_JSLIB']]
+    for t in templates_dirs:
+        template = path_join(t, '%s.html' % appname)
         if path_exists(template):
-            html_templates.append(t)
+            template = path_basename(template)
+            break
+    else:
+        template = None
 
     if dst.endswith('.canvas.debug.html'):
         env['MAKEHTML'].build(env, options, input=src, output=dst,
                               mode='canvas-debug',
-                              templates=templates,
-                              template=html_templates)
+                              templates=templates_dirs,
+                              template=template)
     elif dst.endswith('.canvas.release.html'):
         env['MAKEHTML'].build(env, options, input=src, output=dst,
                               mode='canvas',
                               code=code,
-                              templates=templates,
-                              template=html_templates)
+                              templates=templates_dirs,
+                              template=template)
     elif dst.endswith('.canvas.default.debug.html'):
         env['MAKEHTML'].build(env, options, input=src, output=dst,
                               mode='canvas-debug',
-                              templates=templates)
+                              templates=templates_dirs)
     elif dst.endswith('.canvas.default.release.html'):
         env['MAKEHTML'].build(env, options, input=src, output=dst,
                               mode='canvas',
                               code=code,
-                              templates=templates)
+                              templates=templates_dirs)
     elif dst.endswith('.canvas.js'):
         if options.closure:
             env['MAKETZJS'].build(env, options, input=src, output=dst,
                                   mode='canvas',
                                   MF=dependency_file,
-                                  templates=templates)
+                                  templates=templates_dirs)
             google_compile(dependency_file, dst)
         else:
             env['MAKETZJS'].build(env, options, input=src, output=dst,
                                   mode='canvas',
-                                  templates=templates)
+                                  templates=templates_dirs)
     elif dst.endswith('.debug.html'):
         env['MAKEHTML'].build(env, options, input=src, output=dst,
                               mode='plugin-debug',
-                              templates=templates,
-                              template=html_templates)
+                              templates=templates_dirs,
+                              template=template)
     elif dst.endswith('.release.html'):
         env['MAKEHTML'].build(env, options, input=src, output=dst,
                               mode='plugin',
                               code=tzjs,
-                              templates=templates,
-                              template=html_templates)
+                              templates=templates_dirs,
+                              template=template)
     elif dst.endswith('.default.debug.html'):
         env['MAKEHTML'].build(env, options, input=src, output=dst,
                               mode='plugin-debug',
-                              templates=templates)
+                              templates=templates_dirs)
     elif dst.endswith('.default.release.html'):
         env['MAKEHTML'].build(env, options, input=src, output=dst,
                               mode='plugin',
                               code=tzjs,
-                              templates=templates)
+                              templates=templates_dirs)
     elif dst.endswith('.tzjs'):
         if env['SDK_VERSION'] < StrictVersion('0.19.0'):
             run_js2tzjs({
@@ -603,11 +605,11 @@ def build_code(src, dst, env, options):
                 env['MAKETZJS'].build(env, options, input=src, output=dst,
                                       mode='plugin',
                                       yui='build/yuicompressor-2.4.2.jar',
-                                      templates=templates)
+                                      templates=templates_dirs)
             else:
                 env['MAKETZJS'].build(env, options, input=src, output=dst,
                                       mode='plugin',
-                                      templates=templates)
+                                      templates=templates_dirs)
                 
     elif dst.endswith('.jsinc'):
         run_js2tzjs_jsinc({
