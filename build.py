@@ -15,6 +15,7 @@ from shutil import copyfile, rmtree
 from optparse import OptionParser
 from distutils.version import StrictVersion
 from logging import debug, info, warning, error, basicConfig as logging_config
+from threading import Thread
 
 from simplejson import dump as json_dump
 
@@ -748,6 +749,7 @@ def main():
     parser.add_option('--template', dest='templateName', help="Specify the template to build")
     parser.add_option('--closure', default=None, help="Path to Closure")
     parser.add_option('--yui', default=None, help="Path to YUI")
+    parser.add_option('--threads', default=4, help="Number of threads to use")
     parser.add_option('--verbose', action='store_true', help="Prints additional information about the build process")
     (options, args) = parser.parse_args()
 
@@ -800,16 +802,16 @@ def main():
         _write_mapping_table()
 
         longest = len(max(build_deps, key=len)) + 2
-        def _log(src, dst, skipping=False):
+        def _log(src, dest, skipping=False):
             msg = '(skipping) ' if skipping else ''
             print '{0:-<{longest}}> {2}{1}'.format(src + ' ', dest, msg, longest=longest)
 
-        # Build all asset files
-        built, skipped, failed = 0, 0, 0
-        for src, dest in build_deps.iteritems():
+        metrics = dict(built=0, skipped=0, failed=0)
+        def build(src):
+            dest = build_deps[src]
             if path_exists(dest):
                 _log(src, dest, True)
-                skipped += 1
+                metrics['skipped'] += 1
             else:
                 _log(src, dest)
                 success = build_asset(src, dest, env, options)
@@ -818,14 +820,32 @@ def main():
                     asset = src[len('assets/'):]
                     del urn_mapping[asset]
                     info('Removing asset from mapping table: %s' % asset)
-                    failed += 1
+                    metrics['failed'] += 1
                 else:
-                    built += 1
+                    metrics['built'] += 1
+
+        class Builder(Thread):
+            def __init__(self, assets):
+                Thread.__init__(self)
+                self.assets = assets
+
+            def run(self):
+                map(build, self.assets)
+
+        assets = build_deps.keys()
+        num_threads = int(options.threads)
+        threads = [Builder(assets[i::num_threads]) for i in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        else:
+            del threads
 
         # Write mapping table
         _write_mapping_table()
 
-        _log_stage("BUILT: %i - SKIPPED: %i - FAILED: %i" % (built, skipped, failed))
+        _log_stage("BUILT: %i - SKIPPED: %i - FAILED: %i" % (metrics['built'], metrics['skipped'], metrics['failed']))
 
     if options.code or options.all:
         _log_stage('CODE BUILD')
