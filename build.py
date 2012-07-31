@@ -46,16 +46,12 @@ class CalledProcessError(Exception):
         return "Command '%s' returned non-zero exit status %d" % (self.cmd, self.retcode)
 # pylint: enable=W0231
 
-def exec_command(command, cwd=None, env=None, verbose=True, console=False,
-                 ignore=False, shell=True, wait=True):
+def exec_command(command, cwd=None, env=None, console=False, ignore=False, shell=True, wait=True):
 
     if shell and isinstance(command, list):
         command = ' '.join(command)
     elif not shell and isinstance(command, basestring):
         command = command.split()
-
-    if verbose:
-        print 'Executing: %s' % command
 
     if wait:
         if console:
@@ -101,7 +97,6 @@ def mkdir(path):
 ############################################################
 
 def check_path_py_tools(env):
-
     path = None
     env_name = 'PYTOOLS_ROOT'
     try:
@@ -125,8 +120,7 @@ def check_path_py_tools(env):
         warning("Can't find optional %s path (Not set)" % (env_name))
     return (env_name, path)
 
-def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
-                  default_arg=None, required=False):
+def check_py_tool(env_name, tool_name, env, options, default_arg=None, required=False):
     if required:
         _warning = warning
         _error = error
@@ -151,7 +145,7 @@ def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
         if default_arg:
             args.append(default_arg)
         try:
-            result = exec_command(args, verbose=options.verbose, console=options.verbose)
+            result = exec_command(args)
         except CalledProcessError:
             _warning("Failed to run tool as: %s" % args)
         else:
@@ -160,33 +154,22 @@ def check_py_tool(env_name, tool_name, env, options, exp_version_str=None,
         _error("Failed to find tool: %s" % tool_name)
         return None
 
-    # Tool runs, check version
-    env[env_name] = tool #!!!
-
-    # Check the version info matches
-    if exp_version_str:
-        info("Checking version")
-
-        args = [tool, '--version']
-        try:
-            result = exec_command(args, verbose=options.verbose, console=options.verbose)
-            if result != exp_version_str:
-                error("Tool version returned: %s" % result)
-                return None
-        except CalledProcessError:
-            error("Tool failed to print version")
-            return None
-
     return tool
 
+############################################################
 
 class Tool(object):
-    name = None
-    module = None
-    default_arg = None
 
-    executable = None
+    class ConfigurationException(Exception):
+        def __init__(self, name, required=False):
+            self.name = name
+            self.required = required
+
+    name = None
+    app = None
+    default_arg = None
     ext = None
+    configure = None
 
     tool = None
 
@@ -207,72 +190,104 @@ class Tool(object):
 
     def __init__(self, env, options, sdk_version):
         required = self._required(sdk_version)
-        if self.module:
-            self.tool = check_py_tool(self.name, self.module, env, options,
+        if self.configure:
+            self.tool = self.configure(env, options)
+        else:
+            self.tool = check_py_tool(self.name, self.app, env, options,
                                       default_arg=self.default_arg,
                                       required=required)
-        elif self.executable:
-            self.tool = self.configure(env, options)
 
         if not self.tool:
-            if required:
-                error("Couldn't find tool: %s" % self.name)
-                exit(1)
-            else:
-                warning("Couldn't find tool: %s (optional)" % self.name)
+            raise(Tool.ConfigurationException(self.name, required))
         else:
             info("%s: %s" % (self.name, self.tool))
 
-    def configure(self, env, options):
-        pass
-
-    def build():
-        pass
+    def build(self, env, options, input, output):
+        args = [self.tool, '-i', input, '-o', output]
+        exec_command(args, console=True)
 
 class DAE2JSON(Tool):
     name = 'DAE2JSON'
-    module = 'dae2json'
+    app = 'dae2json'
     ext = '.dae'
+
+class MATERIAL2JSON(Tool):
+    name = 'MATERIAL2JSON'
+    app = 'material2json'
+    ext = '.material'
+
+class EFFECT2JSON(Tool):
+    name = 'EFFECT2JSON'
+    app = 'effect2json'
+    ext = '.effect'
+
+class LIGHT2JSON(Tool):
+    name = 'LIGHT2JSON'
+    app = 'light2json'
+    ext = '.light'
+
+class XML2JSON(Tool):
+    name = 'XML2JSON'
+    app = 'xml2json'
+    default_arg = '--version'
+    ext = '.xml'
+
+class OBJ2JSON(Tool):
+    name = 'OBJ2JSON'
+    app = 'obj2json'
+    default_arg = '--version'
+    ext = '.obj'
 
 class BMFONT2JSON(Tool):
     name = 'BMFONT2JSON'
-    module = 'bmfont2json'
+    app = 'bmfont2json'
+    ext = '.fnt'
 
 class MC2JSON(Tool):
     name = 'MC2JSON'
-    module = 'mc2json'
+    app = 'mc2json'
     default_arg = '--version'
-    ext = '.schema'
+    ext = '.schematic'
+
+    def build(self, env, options, input, output):
+        args = [self.tool, '--lower', '--quantise', '--tidy', input, output]
+        exec_command(args, console=options.verbose)
 
 class JS2TZJS(Tool):
     name = 'JS2TZJS'
-    module = 'js2tzjs'
+    app = 'js2tzjs'
     required = True
     before = StrictVersion('0.19.0')
 
 class HTML2TZHTML(Tool):
     name = 'HTML2TZHTML'
-    module = 'html2tzhtml'
+    app = 'html2tzhtml'
     required = True
     before = StrictVersion('0.19.0')
 
 class MAKETZJS(Tool):
     name = 'MAKETZJS'
-    module = 'maketzjs'
+    app = 'maketzjs'
     default_arg = '--version'
     required = True
     after = StrictVersion('0.19.0')
 
 class MAKEHTML(Tool):
     name = 'MAKEHTML'
-    module = 'makehtml'
+    app = 'makehtml'
     default_arg = '--version'
     required = True
     after = StrictVersion('0.19.0')
 
+class JSON2JSON(Tool):
+    name = 'JSON2JSON'
+    app = 'json2json'
+    ext = '.json'
+
 class CGFX2JSON(Tool):
     name = 'CGFX2JSON'
-    executable = 'cgfx2json'
+    app = 'cgfx2json'
+    ext = '.cgfx'
 
     def configure(self, env, options):
         tools_root = env['TOOLS_ROOT']
@@ -286,18 +301,14 @@ class CGFX2JSON(Tool):
 
         args = [tool]
         try:
-            result = exec_command(args, verbose=options.verbose, console=options.verbose)
+            result = exec_command(args)
         except CalledProcessError:
             info("Failed to run tool cgfx2json: %s" % args)
             return None
         else:
-            info("Result: %s" % str(result))
             return tool
 
-    def build(self, env, options, input=None, output=None):
-        args = [self.tool, '-i', input, '-o', output]
-        exec_command(args, verbose=options.verbose, console=True)
-
+############################################################
 
 def configure(env, options):
     app_root = os.getcwd()
@@ -392,10 +403,23 @@ def configure(env, options):
     if pytools_root is None:
         warning("Path pytools_root has not been set (optional)")
 
-    for tool in [DAE2JSON, BMFONT2JSON, MC2JSON, JS2TZJS, HTML2TZHTML, MAKETZJS, MAKEHTML, CGFX2JSON]:
-        t = tool(env, options, sdk_version)
-        env[t.name] = t
-        
+    tools = { }
+    for tool in [DAE2JSON, MATERIAL2JSON, EFFECT2JSON, LIGHT2JSON, XML2JSON, OBJ2JSON, BMFONT2JSON, MC2JSON,
+                 JS2TZJS, HTML2TZHTML, MAKETZJS, MAKEHTML,
+                 JSON2JSON, CGFX2JSON]:
+        try:
+            t = tool(env, options, sdk_version)
+        except Tool.ConfigurationException as e:
+            if e.required:
+                error("Couldn't find tool: %s" % e.name)
+                return False
+            else:
+                warning("Couldn't find tool: %s (optional)" % e.name)
+        else:
+            env[t.name] = t
+            tools[t.ext] = t
+    env['TOOLS'] = tools
+
     env['MAPPING_TABLE'] = 'mapping_table.json'
     env['APP_MAPPING_TABLE'] = path_join(app_root, env['MAPPING_TABLE'])
     env['APP_STATICMAX'] = path_join(app_root, 'staticmax')
@@ -414,6 +438,9 @@ def configure(env, options):
         env['APP_JSLIB'] = path_join(app_root)
 
     return True
+
+############################################################
+############################################################
 
 def run_makehtml(env, options, input=None, mode=None, output=None, templates=[], code=None, template=None):
     try:
@@ -447,7 +474,7 @@ def run_makehtml(env, options, input=None, mode=None, output=None, templates=[],
         args.append(input)
     if template is not None:
         args.append(template)
-    return exec_command(args, verbose=options.verbose, console=True, shell=True)
+    return exec_command(args, console=True, shell=True)
 
 def run_maketzjs(env, options, input=None, mode=None, MF=None, output=None, templates=[]):
     try:
@@ -474,7 +501,7 @@ def run_maketzjs(env, options, input=None, mode=None, MF=None, output=None, temp
     if input is not None:
         args.append(input)
 
-    return exec_command(args, verbose=options.verbose, console=True)
+    return exec_command(args, console=True)
 
 def run_js2tzjs(task):
     src = task['inputs'][0]
@@ -489,7 +516,7 @@ def run_js2tzjs(task):
             '-z',
             '--ev', env['ENGINE_VERSION_STR']]
 
-    return exec_command(args, verbose=task['options'].verbose, console=True)
+    return exec_command(args, console=True)
 
 def run_js2tzjs_jsinc(task):
     src = task['inputs'][0]
@@ -503,33 +530,9 @@ def run_js2tzjs_jsinc(task):
             '-I', env['APP_ROOT'],
             '--ev', env['ENGINE_VERSION_STR']]
 
-    return exec_command(args, verbose=task['options'].verbose, console=True)
+    return exec_command(args, console=True)
 
-def clean(env):
-    try:
-        rmdir(env['APP_STATICMAX'])
-        rm(env['APP_MAPPING_TABLE'])
-
-        # Aggressive root level cleaning
-        for f in os.listdir(env['APP_ROOT']):
-            (filename, ext) = path_splitext(f)
-
-            # Also cleans previous SDK content e.g. .jsinc
-            if ext in ['.jsinc', '.tzjs', '.html']:
-                rm(f)
-            if ext == '.js':
-                #Only remove canvas js files, might have js in root folder
-                (appname, target) = path_splitext(filename)
-                if target == '.canvas':
-                    rm(f)
-                else:
-                    warning('[Warning] target %s unknown, ignoring. Not cleaned: %s' % (target, f))
-    except OSError as e:
-        error('Failed to remove: %s' % str(e))
-        return False
-
-    return True
-
+############################################################
 ############################################################
 
 def _log_stage(stage):
@@ -759,26 +762,51 @@ def google_compile(dependency_file, output_file):
     ]
 
     _log_stage('RUNNING CLOSURE COMPILER')
-    exec_command(args, console=True, verbose=True, shell=True)
+    exec_command(args, console=True, shell=True)
 
 def do_build(src, dest, env, options):
     (_, ext) = path_splitext(src)
     try:
-        if ext == '.cgfx':
-            env['CGFX2JSON'].build(env, options, input=src, output=dest)
-        elif ext == '.dae':
-            exec_command("%s -i %s -o %s" % (env['DAE2JSON'], src, dest))
-        elif ext == '.fnt':
-            exec_command("%s -i %s -o %s" % (env['BMFONT2JSON'], src, dest))
-        elif ext == '.schematic':
-            exec_command("%s -i %s -o %s" % (env['MC2JSON'], src, dest))
-        else:
+        tool = env['TOOLS'].get(ext, None)
+        if tool:
+            tool.build(env, options, src, dest)
+        elif ext in ['.ogg', '.png', '.jpeg', '.jpg', '.tga', '.dds']:
             copyfile(src, dest)
+        else:
+            warning('No tool for: %s (skipping)' % src)
+            return False
     except CalledProcessError as e:
         error('Command failed: ' + str(e))
         return False
     else:
         return True
+
+############################################################
+
+def clean(env):
+    try:
+        rmdir(env['APP_STATICMAX'])
+        rm(env['APP_MAPPING_TABLE'])
+
+        # Aggressive root level cleaning
+        for f in os.listdir(env['APP_ROOT']):
+            (filename, ext) = path_splitext(f)
+
+            # Also cleans previous SDK content e.g. .jsinc
+            if ext in ['.jsinc', '.tzjs', '.html']:
+                rm(f)
+            if ext == '.js':
+                #Only remove canvas js files, might have js in root folder
+                (appname, target) = path_splitext(filename)
+                if target == '.canvas':
+                    rm(f)
+                else:
+                    warning('[Warning] target %s unknown, ignoring. Not cleaned: %s' % (target, f))
+    except OSError as e:
+        error('Failed to remove: %s' % str(e))
+        return False
+
+    return True
 
 def find_non_ascii(path, env):
     non_ascii_count = 0
@@ -859,25 +887,46 @@ def main():
 
         # Mapping table
         mkdir('staticmax')
-        (mapping_table_obj, build_deps) = gen_mapping('assets', 'staticmax')
+        (mapping_table_obj, build_deps) = gen_mapping('assets', 'staticmax',
+            ['.pdf', '.mtl', '.otf', '.txt', '.cgh', '.mb'])
         debug('assets:src:%s' % build_deps)
+        urn_mapping = mapping_table_obj['urnmapping']
+
+        def _write_mapping_table():
+            print '%i assets -> %s' % (len(urn_mapping), env['MAPPING_TABLE'])
+            with open(env['APP_MAPPING_TABLE'], 'w') as f:
+                json_dump(mapping_table_obj, f, separators=(',', ':'))
 
         # Write mapping table
-        print env['MAPPING_TABLE']
-        with open(env['APP_MAPPING_TABLE'], 'w') as f:
-            json_dump(mapping_table_obj, f, separators=(',', ':'))
+        _write_mapping_table()
 
         longest = len(max(build_deps, key=len)) + 2
-        def _log(src, dst):
-            print '{0:-<{longest}}> {1}'.format(src + ' ', dest, longest=longest)
+        def _log(src, dst, skipping=False):
+            msg = '(skipping) ' if skipping else ''
+            print '{0:-<{longest}}> {2}{1}'.format(src + ' ', dest, msg, longest=longest)
 
         # Build all asset files
+        built, skipped, failed = 0, 0, 0
         for src, dest in build_deps.iteritems():
-            _log(src, dest)
-            success = do_build(src, dest, env, options)
-            if not success:
-                error('Build failed')
-                return 1
+            if path_exists(dest):
+                _log(src, dest, True)
+                skipped += 1
+            else:
+                _log(src, dest)
+                success = do_build(src, dest, env, options)
+                if not success:
+                    # Bit of a hack to remove the failed asset from the mapping table.
+                    asset = src[len('assets/'):]
+                    del urn_mapping[asset]
+                    info('Removing asset from mapping table: %s' % asset)
+                    failed += 1
+                else:
+                    built += 1
+
+        _log_stage("BUILT: %i - SKIPPED: %i - FAILED: %i" % (built, skipped, failed))
+
+        # Write mapping table
+        _write_mapping_table()
 
     if options.code or options.all:
         _log_stage('CODE BUILD')
