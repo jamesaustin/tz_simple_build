@@ -419,6 +419,7 @@ def configure(env, options):
             env[t.name] = t
             tools[t.ext] = t
     env['TOOLS'] = tools
+    env['COPY_EXTENSIONS'] = set(['.ogg', '.png', '.jpeg', '.jpg', '.tga', '.dds'])
 
     env['MAPPING_TABLE'] = 'mapping_table.json'
     env['APP_MAPPING_TABLE'] = path_join(app_root, env['MAPPING_TABLE'])
@@ -770,7 +771,7 @@ def do_build(src, dest, env, options):
         tool = env['TOOLS'].get(ext, None)
         if tool:
             tool.build(env, options, src, dest)
-        elif ext in ['.ogg', '.png', '.jpeg', '.jpg', '.tga', '.dds']:
+        elif ext in env['COPY_EXTENSIONS']:
             copyfile(src, dest)
         else:
             warning('No tool for: %s (skipping)' % src)
