@@ -526,7 +526,8 @@ def _log_stage(stage):
     print '\n{0}\n{1: ^58}\n{0}\n'.format('-' * 58, stage)
 
 def build_code(src, dst, env, options):
-    appname, _ = path_splitext(path_basename(src))
+    input = path_basename(src)
+    appname, _ = path_splitext(input)
     code = '%s.canvas.js' % appname
     tzjs = '%s.tzjs' % appname
 
@@ -542,53 +543,53 @@ def build_code(src, dst, env, options):
         template = None
 
     if dst.endswith('.canvas.debug.html'):
-        env['MAKEHTML'].build(env, options, input=src, output=dst,
+        env['MAKEHTML'].build(env, options, input=input, output=dst,
                               mode='canvas-debug',
                               templates=templates_dirs,
                               template=template)
     elif dst.endswith('.canvas.release.html'):
-        env['MAKEHTML'].build(env, options, input=src, output=dst,
+        env['MAKEHTML'].build(env, options, input=input, output=dst,
                               mode='canvas',
                               code=code,
                               templates=templates_dirs,
                               template=template)
     elif dst.endswith('.canvas.default.debug.html'):
-        env['MAKEHTML'].build(env, options, input=src, output=dst,
+        env['MAKEHTML'].build(env, options, input=input, output=dst,
                               mode='canvas-debug',
                               templates=templates_dirs)
     elif dst.endswith('.canvas.default.release.html'):
-        env['MAKEHTML'].build(env, options, input=src, output=dst,
+        env['MAKEHTML'].build(env, options, input=input, output=dst,
                               mode='canvas',
                               code=code,
                               templates=templates_dirs)
     elif dst.endswith('.canvas.js'):
         if options.closure:
-            env['MAKETZJS'].build(env, options, input=src, output=dst,
+            env['MAKETZJS'].build(env, options, input=input, output=dst,
                                   mode='canvas',
                                   MF=dependency_file,
                                   templates=templates_dirs)
             google_compile(dependency_file, dst, options.closure)
         else:
-            env['MAKETZJS'].build(env, options, input=src, output=dst,
+            env['MAKETZJS'].build(env, options, input=input, output=dst,
                                   mode='canvas',
                                   templates=templates_dirs)
     elif dst.endswith('.debug.html'):
-        env['MAKEHTML'].build(env, options, input=src, output=dst,
+        env['MAKEHTML'].build(env, options, input=input, output=dst,
                               mode='plugin-debug',
                               templates=templates_dirs,
                               template=template)
     elif dst.endswith('.release.html'):
-        env['MAKEHTML'].build(env, options, input=src, output=dst,
+        env['MAKEHTML'].build(env, options, input=input, output=dst,
                               mode='plugin',
                               code=tzjs,
                               templates=templates_dirs,
                               template=template)
     elif dst.endswith('.default.debug.html'):
-        env['MAKEHTML'].build(env, options, input=src, output=dst,
+        env['MAKEHTML'].build(env, options, input=input, output=dst,
                               mode='plugin-debug',
                               templates=templates_dirs)
     elif dst.endswith('.default.release.html'):
-        env['MAKEHTML'].build(env, options, input=src, output=dst,
+        env['MAKEHTML'].build(env, options, input=input, output=dst,
                               mode='plugin',
                               code=tzjs,
                               templates=templates_dirs)
@@ -601,7 +602,7 @@ def build_code(src, dst, env, options):
                 'options': options
             })
         else:
-            env['MAKETZJS'].build(env, options, input=src, output=dst,
+            env['MAKETZJS'].build(env, options, input=input, output=dst,
                                   mode='plugin',
                                   yui=options.yui,
                                   templates=templates_dirs)
