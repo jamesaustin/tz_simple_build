@@ -567,7 +567,7 @@ def build_code(src, dst, env, options):
                                   mode='canvas',
                                   MF=dependency_file,
                                   templates=templates_dirs)
-            google_compile(dependency_file, dst)
+            google_compile(dependency_file, dst, options.closure)
         else:
             env['MAKETZJS'].build(env, options, input=src, output=dst,
                                   mode='canvas',
@@ -601,16 +601,10 @@ def build_code(src, dst, env, options):
                 'options': options
             })
         else:
-            if options.closure:
-                env['MAKETZJS'].build(env, options, input=src, output=dst,
-                                      mode='plugin',
-                                      yui='build/yuicompressor-2.4.2.jar',
-                                      templates=templates_dirs)
-            else:
-                env['MAKETZJS'].build(env, options, input=src, output=dst,
-                                      mode='plugin',
-                                      templates=templates_dirs)
-                
+            env['MAKETZJS'].build(env, options, input=src, output=dst,
+                                  mode='plugin',
+                                  yui=options.yui,
+                                  templates=templates_dirs)
     elif dst.endswith('.jsinc'):
         run_js2tzjs_jsinc({
             'inputs': [src],
@@ -623,8 +617,7 @@ def build_code(src, dst, env, options):
 
     return True
 
-def google_compile(dependency_file, output_file):
-
+def google_compile(dependency_file, output_file, path_to_closure):
     with open(dependency_file, 'r') as f:
         file_contents = f.read()
 
@@ -654,8 +647,7 @@ def google_compile(dependency_file, output_file):
     args = [
         'java',
         '-jar',
-        'build/compiler.jar',
-        '--version',
+        path_to_closure,
         '--compilation_level',
         optimization_level,
         '--flagfile',
@@ -755,7 +747,8 @@ def main():
     parser.add_option('--find-non-ascii', action='store_true', default=False,
                       help="Searches for non ascii characters in the scripts")
     parser.add_option('--template', dest='templateName', help="Specify the template to build")
-    parser.add_option('--closure', action='store_true', default=False, help="Use Google Closure to post process")
+    parser.add_option('--closure', default=None, help="Path to Closure")
+    parser.add_option('--yui', default=None, help="Path to YUI")
     parser.add_option('--verbose', action='store_true', help="Prints additional information about the build process")
     (options, args) = parser.parse_args()
 
