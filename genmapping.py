@@ -57,17 +57,19 @@ def get_target_filename(filename):
 
 ############################################################
 
-def gen_mapping(asset_dir, staticmax_root, ignore_exts = []):
+def gen_mapping(asset_dir, staticmax_root, ignore=None):
 
     def _ext_format(ext):
         if ext[0] == '.':
             return ext
         else:
-            return '.'+ext
-    not_json = [ '.png', '.jpg', '.jpeg', '.dds', '.tga',
-                 '.mp3', '.ogg' ]
-    ignore = [ '.cgh', '.mb', '.txt' ] + \
-        [ _ext_format(e) for e in ignore_exts ]
+            return '.' + ext
+
+    not_json = [ '.png', '.jpg', '.jpeg', '.dds', '.tga', '.mp3', '.ogg' ]
+    if ignore:
+        ignore = [ _ext_format(e) for e in ignore ]
+    else:
+        ignore = [ '.cgh', '.mb', '.txt' ]
 
     mapping_table = {}
     build_deps = {}
@@ -80,9 +82,11 @@ def gen_mapping(asset_dir, staticmax_root, ignore_exts = []):
             f_fullpath = os.path.join(root, f).replace('\\', '/')
             f_path = os.path.join(root_rel, f).replace('\\', '/')
             f_hash = get_file_hash(f_fullpath)
-            f_ext = os.path.splitext(f)[1]
+            f_name, f_ext = os.path.splitext(f)
 
             if f_ext in ignore:
+                continue
+            if f_name.startswith('.'):
                 continue
 
             target_name = f_hash + f_ext
