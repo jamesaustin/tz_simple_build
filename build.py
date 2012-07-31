@@ -47,7 +47,6 @@ class CalledProcessError(Exception):
 # pylint: enable=W0231
 
 def exec_command(command, cwd=None, env=None, verbose=False, console=False, ignore=False, shell=True, wait=True):
-
     if shell and isinstance(command, list):
         command = ' '.join(command)
     elif not shell and isinstance(command, basestring):
